@@ -1,67 +1,67 @@
 # HA Rebrand
 
-一个 Home Assistant 自定义组件，让您可以自定义 Home Assistant 实例的品牌外观。
+一個 Home Assistant 自訂組件，讓您可以自訂 Home Assistant 實例的品牌外觀。
 
 ## 功能特性
 
-- 用自定义 Logo 替换 Home Assistant 默认标志
-- 自定义网站图标 (Favicon)
-- 自定义侧边栏标题
-- 自定义浏览器标签页标题
-- 文字替换映射（例如："Home Assistant" → "我的智能家居"）
-- 深色模式 Logo 支持
-- 管理面板支持拖放上传文件
+- 用自訂 Logo 替換 Home Assistant 預設標誌
+- 自訂網站圖示 (Favicon)
+- 自訂側邊欄標題
+- 自訂瀏覽器標籤頁標題
+- 文字替換對應（例如：「Home Assistant」→「我的智慧家居」）
+- 深色模式 Logo 支援
+- 管理面板支援拖放上傳檔案
 
-## 安装方法
+## 安裝方法
 
-### HACS 安装（推荐）
+### HACS 安裝（推薦）
 
-1. 在 Home Assistant 中打开 HACS
-2. 点击"集成"
-3. 点击右上角的三个点，选择"自定义存储库"
-4. 添加本仓库 URL，类别选择"Integration"
-5. 点击"安装"
-6. 重启 Home Assistant
+1. 在 Home Assistant 中開啟 HACS
+2. 點擊「整合」
+3. 點擊右上角的三個點，選擇「自訂儲存庫」
+4. 新增本儲存庫 URL，類別選擇「Integration」
+5. 點擊「安裝」
+6. 重新啟動 Home Assistant
 
-### 手动安装
+### 手動安裝
 
-1. 将本仓库复制到您的 `custom_components/ha_rebrand` 目录
-2. 重启 Home Assistant
+1. 將本儲存庫複製到您的 `custom_components/ha_rebrand` 目錄
+2. 重新啟動 Home Assistant
 
-## 配置方法
+## 設定方法
 
-### 方式一：使用管理面板（推荐）
+### 方式一：使用管理面板（推薦）
 
-1. 安装完成后，在侧边栏点击"Rebrand"
-2. 使用界面配置您的品牌：
-   - 上传您的 Logo 和网站图标
-   - 设置品牌名称和标题
-   - 添加文字替换规则
-3. 点击"应用更改"测试配置
-4. 点击"保存到文件"创建永久配置
+1. 安裝完成後，在側邊欄點擊「Rebrand」
+2. 使用介面設定您的品牌：
+   - 上傳您的 Logo 和網站圖示
+   - 設定品牌名稱和標題
+   - 新增文字替換規則
+3. 點擊「套用變更」測試設定
+4. 點擊「儲存到檔案」建立永久設定
 
-### 方式二：手动 YAML 配置
+### 方式二：手動 YAML 設定
 
-在 `configuration.yaml` 中添加以下内容：
+在 `configuration.yaml` 中新增以下內容：
 
 ```yaml
 ha_rebrand:
-  brand_name: "我的智能家居"
+  brand_name: "我的智慧家居"
   logo: "/local/my-logo.svg"
-  logo_dark: "/local/my-logo-dark.svg"  # 可选
+  logo_dark: "/local/my-logo-dark.svg"  # 可選
   favicon: "/local/favicon.ico"
-  sidebar_title: "我的智能家居"
-  document_title: "我的智能家居"
+  sidebar_title: "我的智慧家居"
+  document_title: "我的智慧家居"
   replacements:
-    "Home Assistant": "我的智能家居"
+    "Home Assistant": "我的智慧家居"
     "HA": "智家"
 ```
 
-### 启用注入脚本
+### 啟用注入腳本
 
-要在整个界面启用自动品牌替换，需要将注入脚本添加到 Lovelace 配置中。
+要在整個介面啟用自動品牌替換，需要將注入腳本新增到 Lovelace 設定中。
 
-在 `configuration.yaml` 中添加：
+在 `configuration.yaml` 中新增：
 
 ```yaml
 frontend:
@@ -69,104 +69,104 @@ frontend:
     - /local/ha_rebrand/ha-rebrand-injector.js
 ```
 
-然后重启 Home Assistant。
+然後重新啟動 Home Assistant。
 
-## 配置选项
+## 設定選項
 
-| 选项 | 类型 | 默认值 | 说明 |
+| 選項 | 類型 | 預設值 | 說明 |
 |------|------|--------|------|
-| `brand_name` | 字符串 | "Home Assistant" | 主品牌名称 |
-| `logo` | 字符串 | null | Logo 图片路径（支持 `/local/` 路径和 URL） |
-| `logo_dark` | 字符串 | null | 深色模式 Logo 路径（可选） |
-| `favicon` | 字符串 | null | 网站图标路径 |
-| `sidebar_title` | 字符串 | brand_name | 侧边栏显示的标题 |
-| `document_title` | 字符串 | brand_name | 浏览器标签页标题 |
-| `replacements` | 字典 | {} | 文字替换映射 |
+| `brand_name` | 字串 | "Home Assistant" | 主品牌名稱 |
+| `logo` | 字串 | null | Logo 圖片路徑（支援 `/local/` 路徑和 URL） |
+| `logo_dark` | 字串 | null | 深色模式 Logo 路徑（可選） |
+| `favicon` | 字串 | null | 網站圖示路徑 |
+| `sidebar_title` | 字串 | brand_name | 側邊欄顯示的標題 |
+| `document_title` | 字串 | brand_name | 瀏覽器標籤頁標題 |
+| `replacements` | 字典 | {} | 文字替換對應 |
 
-## 文件路径说明
+## 檔案路徑說明
 
-将自定义图片放在 `/config/www/` 目录中，它们可以通过 `/local/` URL 访问。
+將自訂圖片放在 `/config/www/` 目錄中，它們可以透過 `/local/` URL 存取。
 
-示例：
-- 文件位置：`/config/www/my-logo.svg`
-- 配置写法：`logo: "/local/my-logo.svg"`
+範例：
+- 檔案位置：`/config/www/my-logo.svg`
+- 設定寫法：`logo: "/local/my-logo.svg"`
 
-支持的图片格式：
+支援的圖片格式：
 - PNG
 - JPG/JPEG
 - SVG
-- ICO（用于网站图标）
+- ICO（用於網站圖示）
 - WebP
 
-## 设置显示位置对照表
+## 設定顯示位置對照表
 
-| 设置项 | 显示位置 |
+| 設定項 | 顯示位置 |
 |--------|----------|
-| `brand_name` | 设置页面标题、关于页面、系统信息 |
-| `sidebar_title` | 侧边栏顶部标题区域 |
-| `document_title` | 浏览器标签页标题（例如：「总览 – 品牌名称」） |
-| `logo` | 侧边栏顶部 Logo 区域 |
-| `logo_dark` | 深色模式下的侧边栏 Logo |
-| `favicon` | 浏览器标签页图标 |
-| `replacements` | 整个界面中匹配的文字 |
+| `brand_name` | 設定頁面標題、關於頁面、系統資訊 |
+| `sidebar_title` | 側邊欄頂部標題區域 |
+| `document_title` | 瀏覽器標籤頁標題（例如：「總覽 – 品牌名稱」） |
+| `logo` | 側邊欄頂部 Logo 區域 |
+| `logo_dark` | 深色模式下的側邊欄 Logo |
+| `favicon` | 瀏覽器標籤頁圖示 |
+| `replacements` | 整個介面中符合的文字 |
 
-## 工作原理
+## 運作原理
 
-1. **后端组件**：管理配置、文件上传，并提供 WebSocket/HTTP API
-2. **管理面板**：提供用户友好的界面来配置品牌
-3. **注入脚本**：在每次页面加载时运行，执行以下操作：
-   - 替换网站图标
-   - 更新文档标题
-   - 替换侧边栏 Logo 和标题
-   - 在整个 DOM 中执行文字替换
-   - 监控动态内容变化
+1. **後端組件**：管理設定、檔案上傳，並提供 WebSocket/HTTP API
+2. **管理面板**：提供使用者友善的介面來設定品牌
+3. **注入腳本**：在每次頁面載入時執行，執行以下操作：
+   - 替換網站圖示
+   - 更新文件標題
+   - 替換側邊欄 Logo 和標題
+   - 在整個 DOM 中執行文字替換
+   - 監控動態內容變化
 
-## 常见问题排查
+## 常見問題排解
 
-### Logo 不显示
+### Logo 不顯示
 
-1. 确保文件存在于 `/config/www/` 目录
-2. 清除浏览器缓存
-3. 检查浏览器控制台是否有错误
+1. 確保檔案存在於 `/config/www/` 目錄
+2. 清除瀏覽器快取
+3. 檢查瀏覽器主控台是否有錯誤
 
-### 文字替换不生效
+### 文字替換不生效
 
-1. 确保注入脚本已加载（检查 `frontend.extra_module_url`）
-2. 配置更改后重启 Home Assistant
-3. 强制刷新浏览器（Ctrl+Shift+R）
+1. 確保注入腳本已載入（檢查 `frontend.extra_module_url`）
+2. 設定變更後重新啟動 Home Assistant
+3. 強制重新整理瀏覽器（Ctrl+Shift+R）
 
-### 管理面板不显示
+### 管理面板不顯示
 
-1. 检查日志中组件是否成功加载
-2. 确保您具有管理员权限
-3. 重启 Home Assistant
+1. 檢查日誌中組件是否成功載入
+2. 確保您具有管理員權限
+3. 重新啟動 Home Assistant
 
-## 限制说明
+## 限制說明
 
-- HA 核心 UI 中某些深层嵌套的元素可能无法被替换
-- 文字替换仅作用于可见文本，不影响元素属性
-- 配置更改需要刷新页面才能生效
+- HA 核心 UI 中某些深層巢狀的元素可能無法被替換
+- 文字替換僅作用於可見文字，不影響元素屬性
+- 設定變更需要重新整理頁面才能生效
 
-## 版本历史
+## 版本歷史
 
 ### 2.0.0
-- 添加 Config Flow 支持 UI 配置
-- 添加深色/浅色模式支持
-- 添加中文翻译
-- 修复侧边栏 Logo 注入问题
-- 改进错误处理
+- 新增 Config Flow 支援 UI 設定
+- 新增深色/淺色模式支援
+- 新增繁體中文翻譯
+- 修復側邊欄 Logo 注入問題
+- 改進錯誤處理
 
 ### 1.0.0
 - 初始版本
-- Logo、网站图标和标题自定义
-- 文字替换映射
-- 管理面板支持文件上传
-- 深色模式 Logo 支持
+- Logo、網站圖示和標題自訂
+- 文字替換對應
+- 管理面板支援檔案上傳
+- 深色模式 Logo 支援
 
-## 许可证
+## 授權條款
 
 MIT License
 
-## 支持
+## 支援
 
-如有问题或功能建议，请使用 GitHub Issue 追踪器。
+如有問題或功能建議，請使用 GitHub Issue 追蹤器。
