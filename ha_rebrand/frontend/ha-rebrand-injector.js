@@ -110,8 +110,20 @@
    * Replace sidebar logo and title
    */
   function replaceSidebar() {
-    // Try to find the sidebar
-    const sidebar = document.querySelector('ha-sidebar');
+    // Try to find the sidebar through Shadow DOM hierarchy
+    let sidebar = document.querySelector('ha-sidebar');
+
+    // If not found directly, try through home-assistant shadow DOM
+    if (!sidebar) {
+      const ha = document.querySelector('home-assistant');
+      if (ha?.shadowRoot) {
+        const haMain = ha.shadowRoot.querySelector('home-assistant-main');
+        if (haMain?.shadowRoot) {
+          sidebar = haMain.shadowRoot.querySelector('ha-sidebar');
+        }
+      }
+    }
+
     if (!sidebar) return false;
 
     const shadowRoot = sidebar.shadowRoot;
@@ -127,22 +139,26 @@
 
     // Replace sidebar logo
     if (config?.logo) {
-      const logoContainer = shadowRoot.querySelector('.menu .logo');
-      if (logoContainer) {
+      const menu = shadowRoot.querySelector('.menu');
+      if (menu) {
         // Check if we already replaced it
-        if (!logoContainer.querySelector('.ha-rebrand-logo')) {
-          // Hide original logo
-          const originalLogo = logoContainer.querySelector('img, ha-icon-button, ha-svg-icon');
-          if (originalLogo) {
-            originalLogo.style.display = 'none';
+        let customLogo = menu.querySelector('.ha-rebrand-logo');
+        if (!customLogo) {
+          // Hide original logo if exists (older HA versions)
+          const logoContainer = menu.querySelector('.logo');
+          if (logoContainer) {
+            const originalLogo = logoContainer.querySelector('img, ha-icon-button, ha-svg-icon');
+            if (originalLogo) {
+              originalLogo.style.display = 'none';
+            }
           }
 
-          // Add custom logo
-          const customLogo = document.createElement('img');
+          // Create custom logo element
+          customLogo = document.createElement('img');
           customLogo.className = 'ha-rebrand-logo';
           customLogo.src = config.logo;
           customLogo.alt = config.brand_name || 'Logo';
-          customLogo.style.cssText = 'height: 40px; width: auto; max-width: 100%; object-fit: contain;';
+          customLogo.style.cssText = 'height: 40px; width: auto; max-width: 180px; object-fit: contain; margin: 12px 12px 4px 12px; display: block;';
 
           // Support dark mode logo
           if (config.logo_dark) {
@@ -160,7 +176,13 @@
             themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
           }
 
-          logoContainer.prepend(customLogo);
+          // Insert logo at the beginning of menu (before title)
+          const titleElement = menu.querySelector('.title');
+          if (titleElement) {
+            menu.insertBefore(customLogo, titleElement);
+          } else {
+            menu.prepend(customLogo);
+          }
         }
       }
     }

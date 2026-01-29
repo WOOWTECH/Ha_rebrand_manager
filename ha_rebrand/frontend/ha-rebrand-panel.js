@@ -43,8 +43,9 @@ class HaRebrandPanel extends LitElement {
         align-items: center;
         height: 56px;
         padding: 0 16px;
-        background: var(--primary-color);
-        color: white;
+        background: var(--app-header-background-color, var(--primary-background-color));
+        color: var(--app-header-text-color, var(--primary-text-color));
+        border-bottom: 1px solid var(--divider-color);
         position: sticky;
         top: 0;
         z-index: 100;
@@ -57,7 +58,7 @@ class HaRebrandPanel extends LitElement {
         height: 40px;
         border: none;
         background: transparent;
-        color: white;
+        color: inherit;
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -68,7 +69,7 @@ class HaRebrandPanel extends LitElement {
       }
 
       .top-bar-sidebar-btn:hover {
-        background: rgba(255, 255, 255, 0.1);
+        background: var(--secondary-background-color);
       }
 
       .top-bar-sidebar-btn svg {
@@ -504,19 +505,32 @@ class HaRebrandPanel extends LitElement {
         body: formData,
       });
 
+      // Check HTTP status first
+      if (!response.ok) {
+        let errorMsg = `HTTP ${response.status}`;
+        try {
+          const errorResult = await response.json();
+          errorMsg = errorResult.error || errorMsg;
+        } catch (e) {
+          // Response is not JSON, use status text
+          errorMsg = response.statusText || errorMsg;
+        }
+        throw new Error(errorMsg);
+      }
+
       const result = await response.json();
 
       if (result.success) {
         // Update config with new path
         const configKey = type === "logo_dark" ? "logo_dark" : type;
         this._config = { ...this._config, [configKey]: result.path };
-        this._showMessage("success", `${type} uploaded successfully!`);
+        this._showMessage("success", `${type} 上傳成功！`);
       } else {
-        throw new Error(result.error || "Upload failed");
+        throw new Error(result.error || "上傳失敗");
       }
     } catch (error) {
       console.error("Upload failed:", error);
-      this._showMessage("error", `Failed to upload ${type}: ${error.message}`);
+      this._showMessage("error", `${type} 上傳失敗: ${error.message}`);
     }
 
     this[uploadingKey] = false;
@@ -625,7 +639,7 @@ class HaRebrandPanel extends LitElement {
               @input=${(e) => this._updateConfig("brand_name", e.target.value)}
               placeholder="My Smart Home"
             />
-            <p class="hint">The main brand name used throughout the interface</p>
+            <p class="hint"><strong>顯示位置：</strong>設定頁面標題、關於頁面、系統資訊中的品牌名稱</p>
           </div>
 
           <div class="form-group">
@@ -636,7 +650,7 @@ class HaRebrandPanel extends LitElement {
               @input=${(e) => this._updateConfig("sidebar_title", e.target.value)}
               placeholder="My Smart Home"
             />
-            <p class="hint">Title shown in the sidebar (defaults to Brand Name)</p>
+            <p class="hint"><strong>顯示位置：</strong>側邊欄頂部標題區域，取代原本的「Home Assistant」文字</p>
           </div>
 
           <div class="form-group">
@@ -647,7 +661,7 @@ class HaRebrandPanel extends LitElement {
               @input=${(e) => this._updateConfig("document_title", e.target.value)}
               placeholder="My Smart Home"
             />
-            <p class="hint">Browser tab title (defaults to Brand Name)</p>
+            <p class="hint"><strong>顯示位置：</strong>瀏覽器標籤頁標題（例如：「總覽 – 品牌名稱」）</p>
           </div>
         </div>
 
@@ -660,6 +674,7 @@ class HaRebrandPanel extends LitElement {
 
           <div class="form-group">
             <label>Logo (Light Mode)</label>
+            <p class="hint" style="margin-bottom: 8px;"><strong>顯示位置：</strong>側邊欄頂部 Logo 區域，取代原本的 Home Assistant Logo</p>
             <div
               class="upload-area"
               @dragover=${this._handleDragOver}
@@ -700,6 +715,7 @@ class HaRebrandPanel extends LitElement {
 
           <div class="form-group">
             <label>Logo (Dark Mode) - Optional</label>
+            <p class="hint" style="margin-bottom: 8px;"><strong>顯示位置：</strong>深色模式下的側邊欄 Logo，若未設定則使用淺色模式 Logo</p>
             <div
               class="upload-area"
               @dragover=${this._handleDragOver}
@@ -714,7 +730,7 @@ class HaRebrandPanel extends LitElement {
                 </div>
               `}
               <div class="upload-info">
-                <p>Optional logo for dark mode</p>
+                <p>深色模式專用 Logo（可選）</p>
                 <div class="upload-actions">
                   <label class="btn btn-primary btn-small">
                     ${this._uploadingLogoDark ? "Uploading..." : "Choose File"}
@@ -748,6 +764,7 @@ class HaRebrandPanel extends LitElement {
 
           <div class="form-group">
             <label>Favicon</label>
+            <p class="hint" style="margin-bottom: 8px;"><strong>顯示位置：</strong>瀏覽器標籤頁圖示（建議尺寸：32x32 或 64x64 像素）</p>
             <div
               class="upload-area"
               @dragover=${this._handleDragOver}
@@ -762,7 +779,7 @@ class HaRebrandPanel extends LitElement {
                 </div>
               `}
               <div class="upload-info">
-                <p>Browser tab icon (recommended: .ico, .png 32x32 or 64x64)</p>
+                <p>支援格式：.ico, .png, .svg</p>
                 <div class="upload-actions">
                   <label class="btn btn-primary btn-small">
                     ${this._uploadingFavicon ? "Uploading..." : "Choose File"}
@@ -795,8 +812,9 @@ class HaRebrandPanel extends LitElement {
           </h2>
 
           <p class="hint" style="margin-bottom: 16px;">
-            Replace specific text throughout the Home Assistant interface.
-            For example, replace "Home Assistant" with your brand name.
+            <strong>功能說明：</strong>在整個 Home Assistant 介面中搜尋並替換指定文字。<br>
+            <strong>常見用途：</strong>將「Home Assistant」替換為您的品牌名稱。<br>
+            <strong>注意事項：</strong>文字替換會套用到所有頁面，包括 Shadow DOM 內的內容。
           </p>
 
           <div class="replacements-list">

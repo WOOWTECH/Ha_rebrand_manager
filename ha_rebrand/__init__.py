@@ -1,6 +1,7 @@
 """HA Rebrand - Custom branding for Home Assistant."""
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -9,33 +10,40 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.components import panel_custom
+from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import HomeAssistantView, StaticPathConfig
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
+from .const import (
+    DOMAIN,
+    CONF_BRAND_NAME,
+    CONF_LOGO,
+    CONF_LOGO_DARK,
+    CONF_FAVICON,
+    CONF_REPLACEMENTS,
+    CONF_SIDEBAR_TITLE,
+    CONF_DOCUMENT_TITLE,
+    DEFAULT_BRAND_NAME,
+    DEFAULT_REPLACEMENTS,
+    MAX_FILE_SIZE,
+    ALLOWED_FILE_TYPES,
+    ALLOWED_EXTENSIONS,
+    PANEL_URL_PATH,
+    PANEL_COMPONENT_NAME,
+    PANEL_TITLE,
+    PANEL_ICON,
+)
+
 _LOGGER = logging.getLogger(__name__)
 
-DOMAIN = "ha_rebrand"
-CONF_BRAND_NAME = "brand_name"
-CONF_LOGO = "logo"
-CONF_LOGO_DARK = "logo_dark"
-CONF_FAVICON = "favicon"
-CONF_REPLACEMENTS = "replacements"
-CONF_SIDEBAR_TITLE = "sidebar_title"
-CONF_DOCUMENT_TITLE = "document_title"
+type HaRebrandConfigEntry = ConfigEntry
 
-DEFAULT_BRAND_NAME = "Home Assistant"
-DEFAULT_REPLACEMENTS = {
-    "Home Assistant": "Home Assistant",
-}
+DATA_PANEL_REGISTERED = f"{DOMAIN}_panel_registered"
 
-# Security constants
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
-ALLOWED_FILE_TYPES = {"logo", "logo_dark", "favicon"}
-ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".ico", ".webp"}
-
+# Keep CONFIG_SCHEMA for backward compatibility (YAML still works)
 CONFIG_SCHEMA = vol.Schema(
     {
         DOMAIN: vol.Schema(
@@ -57,72 +65,86 @@ CONFIG_SCHEMA = vol.Schema(
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the HA Rebrand component."""
-    conf = config.get(DOMAIN, {})
+    """Set up the HA Rebrand component (YAML configuration)."""
+    hass.data.setdefault(DOMAIN, {})
 
-    # Debug logging
-    _LOGGER.info("HA Rebrand config from YAML: %s", conf)
-    _LOGGER.info("HA Rebrand replacements from YAML: %s", conf.get(CONF_REPLACEMENTS, {}))
+    # Register WebSocket API at setup level (available for all entries)
+    _async_register_websocket_commands(hass)
 
-    # Store configuration
-    hass.data[DOMAIN] = {
-        CONF_BRAND_NAME: conf.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
-        CONF_LOGO: conf.get(CONF_LOGO),
-        CONF_LOGO_DARK: conf.get(CONF_LOGO_DARK),
-        CONF_FAVICON: conf.get(CONF_FAVICON),
-        CONF_SIDEBAR_TITLE: conf.get(CONF_SIDEBAR_TITLE, conf.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)),
-        CONF_DOCUMENT_TITLE: conf.get(CONF_DOCUMENT_TITLE, conf.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)),
-        CONF_REPLACEMENTS: {**DEFAULT_REPLACEMENTS, **conf.get(CONF_REPLACEMENTS, {})},
-        "uploads_dir": hass.config.path("www", "ha_rebrand"),
-    }
+    return True
 
-    _LOGGER.info("HA Rebrand final config: %s", hass.data[DOMAIN])
+
+async def async_setup_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) -> bool:
+    """Set up HA Rebrand from a config entry."""
+    _LOGGER.info("Setting up HA Rebrand from config entry")
+
+    # Initialize data structure
+    hass.data.setdefault(DOMAIN, {})
 
     # Create uploads directory
-    uploads_dir = hass.data[DOMAIN]["uploads_dir"]
+    uploads_dir = hass.config.path("www", "ha_rebrand")
     await hass.async_add_executor_job(_create_directory, uploads_dir)
 
-    # Write config to static JSON file for injector
-    config_json = {
-        "brand_name": hass.data[DOMAIN].get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
-        "logo": hass.data[DOMAIN].get(CONF_LOGO),
-        "logo_dark": hass.data[DOMAIN].get(CONF_LOGO_DARK),
-        "favicon": hass.data[DOMAIN].get(CONF_FAVICON),
-        "sidebar_title": hass.data[DOMAIN].get(CONF_SIDEBAR_TITLE),
-        "document_title": hass.data[DOMAIN].get(CONF_DOCUMENT_TITLE),
-        "replacements": hass.data[DOMAIN].get(CONF_REPLACEMENTS, {}),
-    }
+    # Load existing config from JSON file if exists
     config_json_path = os.path.join(uploads_dir, "config.json")
-    await hass.async_add_executor_job(_write_config_json, config_json_path, config_json)
-    _LOGGER.info("HA Rebrand config written to %s", config_json_path)
+    config = await hass.async_add_executor_job(_load_config_json, config_json_path)
+
+    # Store configuration in hass.data
+    hass.data[DOMAIN] = {
+        CONF_BRAND_NAME: config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
+        CONF_LOGO: config.get(CONF_LOGO),
+        CONF_LOGO_DARK: config.get(CONF_LOGO_DARK),
+        CONF_FAVICON: config.get(CONF_FAVICON),
+        CONF_SIDEBAR_TITLE: config.get(CONF_SIDEBAR_TITLE, config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)),
+        CONF_DOCUMENT_TITLE: config.get(CONF_DOCUMENT_TITLE, config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)),
+        CONF_REPLACEMENTS: config.get(CONF_REPLACEMENTS, DEFAULT_REPLACEMENTS),
+        "uploads_dir": uploads_dir,
+    }
+
+    # Write initial config.json
+    await _async_write_config_json(hass)
 
     # Register frontend resources
     await _async_register_frontend(hass)
 
     # Register HTTP views
-    _LOGGER.error("!!! Registering RebrandConfigView for /api/ha_rebrand/config !!!")
     hass.http.register_view(RebrandConfigView(hass))
     hass.http.register_view(RebrandUploadView(hass))
     hass.http.register_view(RebrandSaveConfigView(hass))
-    _LOGGER.error("!!! All views registered !!!")
 
-    # Register panel
-    await panel_custom.async_register_panel(
-        hass,
-        webcomponent_name="ha-rebrand-panel",
-        frontend_url_path="ha-rebrand",
-        config_panel_domain=DOMAIN,
-        sidebar_title="Rebrand",
-        sidebar_icon="mdi:palette-outline",
-        module_url="/ha_rebrand/ha-rebrand-panel.js",
-        embed_iframe=False,
-        require_admin=True,
-    )
-
-    # Register WebSocket commands
-    _async_register_websocket_commands(hass)
+    # Register panel (only once)
+    if not hass.data.get(DATA_PANEL_REGISTERED):
+        await panel_custom.async_register_panel(
+            hass,
+            webcomponent_name=PANEL_COMPONENT_NAME,
+            frontend_url_path=PANEL_URL_PATH,
+            config_panel_domain=DOMAIN,
+            sidebar_title=PANEL_TITLE,
+            sidebar_icon=PANEL_ICON,
+            module_url="/ha_rebrand/ha-rebrand-panel.js",
+            embed_iframe=False,
+            require_admin=True,
+        )
+        hass.data[DATA_PANEL_REGISTERED] = True
 
     _LOGGER.info("HA Rebrand component loaded successfully")
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) -> bool:
+    """Unload a config entry."""
+    _LOGGER.info("Unloading HA Rebrand")
+
+    # Unregister panel
+    if hass.data.get(DATA_PANEL_REGISTERED):
+        if PANEL_URL_PATH in hass.data.get(frontend.DATA_PANELS, {}):
+            frontend.async_remove_panel(hass, PANEL_URL_PATH)
+        hass.data[DATA_PANEL_REGISTERED] = False
+
+    # Clean up hass.data but keep uploads_dir reference
+    uploads_dir = hass.data.get(DOMAIN, {}).get("uploads_dir")
+    hass.data[DOMAIN] = {"uploads_dir": uploads_dir} if uploads_dir else {}
+
     return True
 
 
@@ -132,11 +154,38 @@ def _create_directory(path: str) -> None:
         os.makedirs(path, exist_ok=True)
 
 
+def _load_config_json(path: str) -> dict:
+    """Load config from JSON file."""
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
 def _write_config_json(path: str, config: dict) -> None:
     """Write config to JSON file for static serving."""
-    import json
     with open(path, "w", encoding="utf-8") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
+
+
+async def _async_write_config_json(hass: HomeAssistant) -> None:
+    """Write current config to JSON file."""
+    config = hass.data.get(DOMAIN, {})
+    config_json = {
+        "brand_name": config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
+        "logo": config.get(CONF_LOGO),
+        "logo_dark": config.get(CONF_LOGO_DARK),
+        "favicon": config.get(CONF_FAVICON),
+        "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
+        "document_title": config.get(CONF_DOCUMENT_TITLE),
+        "replacements": config.get(CONF_REPLACEMENTS, {}),
+    }
+    uploads_dir = config.get("uploads_dir", hass.config.path("www", "ha_rebrand"))
+    config_json_path = os.path.join(uploads_dir, "config.json")
+    await hass.async_add_executor_job(_write_config_json, config_json_path, config_json)
 
 
 def _copy_frontend_files(frontend_src: str, frontend_dest: str) -> None:
@@ -210,7 +259,6 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
         msg: dict[str, Any],
     ) -> None:
         """Update rebrand configuration. Requires admin privileges."""
-        _LOGGER.warning("WebSocket update_config called with: %s", msg)
         config = hass.data.get(DOMAIN, {})
 
         if "brand_name" in msg:
@@ -231,19 +279,7 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
         hass.data[DOMAIN] = config
 
         # Write updated config to static JSON file
-        config_json = {
-            "brand_name": config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
-            "logo": config.get(CONF_LOGO),
-            "logo_dark": config.get(CONF_LOGO_DARK),
-            "favicon": config.get(CONF_FAVICON),
-            "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
-            "document_title": config.get(CONF_DOCUMENT_TITLE),
-            "replacements": config.get(CONF_REPLACEMENTS, {}),
-        }
-        uploads_dir = config.get("uploads_dir", hass.config.path("www", "ha_rebrand"))
-        config_json_path = os.path.join(uploads_dir, "config.json")
-        await hass.async_add_executor_job(_write_config_json, config_json_path, config_json)
-        _LOGGER.info("HA Rebrand config updated and written to %s", config_json_path)
+        await _async_write_config_json(hass)
 
         connection.send_result(msg["id"], {"success": True})
 
@@ -252,11 +288,7 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
 
 
 class RebrandConfigView(HomeAssistantView):
-    """View to get rebrand configuration via HTTP.
-
-    Note: This endpoint returns minimal branding data for the injector script.
-    Full configuration requires authentication via WebSocket API.
-    """
+    """View to get rebrand configuration via HTTP."""
 
     url = "/api/ha_rebrand/brand_config"
     name = "api:ha_rebrand:brand_config"
@@ -268,11 +300,7 @@ class RebrandConfigView(HomeAssistantView):
 
     async def get(self, request):
         """Handle GET request."""
-        import logging
-        logger = logging.getLogger("custom_components.ha_rebrand")
         config = self.hass.data.get(DOMAIN, {})
-        logger.error("!!! API GET /api/ha_rebrand/config called !!!")
-        logger.error("!!! Current hass.data[DOMAIN] = %s", config)
         return self.json({
             "brand_name": config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
             "logo": config.get(CONF_LOGO),
@@ -379,25 +407,23 @@ class RebrandSaveConfigView(HomeAssistantView):
 
         config = self.hass.data.get(DOMAIN, {})
 
-        # Prepare config for YAML
+        # Prepare config for YAML (without top-level domain key for !include)
         yaml_config: dict[str, Any] = {
-            DOMAIN: {
-                CONF_BRAND_NAME: config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
-            }
+            CONF_BRAND_NAME: config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
         }
 
         if config.get(CONF_LOGO):
-            yaml_config[DOMAIN][CONF_LOGO] = config[CONF_LOGO]
+            yaml_config[CONF_LOGO] = config[CONF_LOGO]
         if config.get(CONF_LOGO_DARK):
-            yaml_config[DOMAIN][CONF_LOGO_DARK] = config[CONF_LOGO_DARK]
+            yaml_config[CONF_LOGO_DARK] = config[CONF_LOGO_DARK]
         if config.get(CONF_FAVICON):
-            yaml_config[DOMAIN][CONF_FAVICON] = config[CONF_FAVICON]
+            yaml_config[CONF_FAVICON] = config[CONF_FAVICON]
         if config.get(CONF_SIDEBAR_TITLE):
-            yaml_config[DOMAIN][CONF_SIDEBAR_TITLE] = config[CONF_SIDEBAR_TITLE]
+            yaml_config[CONF_SIDEBAR_TITLE] = config[CONF_SIDEBAR_TITLE]
         if config.get(CONF_DOCUMENT_TITLE):
-            yaml_config[DOMAIN][CONF_DOCUMENT_TITLE] = config[CONF_DOCUMENT_TITLE]
+            yaml_config[CONF_DOCUMENT_TITLE] = config[CONF_DOCUMENT_TITLE]
         if config.get(CONF_REPLACEMENTS):
-            yaml_config[DOMAIN][CONF_REPLACEMENTS] = config[CONF_REPLACEMENTS]
+            yaml_config[CONF_REPLACEMENTS] = config[CONF_REPLACEMENTS]
 
         # Write to file using executor to avoid blocking
         config_path = self.hass.config.path("ha_rebrand.yaml")
@@ -408,7 +434,7 @@ class RebrandSaveConfigView(HomeAssistantView):
         return self.json({
             "success": True,
             "path": config_path,
-            "message": "Configuration saved. Add 'ha_rebrand: !include ha_rebrand.yaml' to configuration.yaml and restart.",
+            "message": "Configuration saved. Restart Home Assistant to apply changes.",
         })
 
     @staticmethod
