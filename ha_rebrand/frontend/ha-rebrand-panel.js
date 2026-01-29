@@ -453,13 +453,27 @@ class HaRebrandPanel extends LitElement {
     this._loading = false;
   }
 
+  // Helper to strip cache buster query params from paths
+  _stripCacheBuster(path) {
+    if (!path) return path;
+    return path.split('?')[0];
+  }
+
   async _saveToFile() {
     this._saving = true;
     try {
+      // Prepare config without cache busters for saving
+      const configToSave = {
+        ...this._config,
+        logo: this._stripCacheBuster(this._config.logo),
+        logo_dark: this._stripCacheBuster(this._config.logo_dark),
+        favicon: this._stripCacheBuster(this._config.favicon),
+      };
+
       // First, update config in memory and write config.json via WebSocket
       await this.hass.callWS({
         type: "ha_rebrand/update_config",
-        ...this._config,
+        ...configToSave,
       });
 
       // Then save to YAML file for persistence across restarts
@@ -521,9 +535,10 @@ class HaRebrandPanel extends LitElement {
       const result = await response.json();
 
       if (result.success) {
-        // Update config with new path
+        // Update config with new path (add cache buster for preview)
         const configKey = type === "logo_dark" ? "logo_dark" : type;
-        this._config = { ...this._config, [configKey]: result.path };
+        const cacheBuster = `?t=${Date.now()}`;
+        this._config = { ...this._config, [configKey]: result.path + cacheBuster };
         this._showMessage("success", `${type} 上傳成功！`);
       } else {
         throw new Error(result.error || "上傳失敗");
