@@ -1,25 +1,16 @@
-# HA Rebrand Manager
+# HA Rebrand
 
 A Home Assistant custom component that allows you to customize the branding of your Home Assistant instance.
 
 ## Features
 
-- **Custom Logo** - Replace Home Assistant logo with your own (supports light/dark mode)
-- **Custom Favicon** - Change the browser tab icon
-- **Custom Titles** - Set sidebar title and browser tab title
-- **Text Replacement** - Replace text throughout the interface (e.g., "Home Assistant" → "Your Brand")
-- **Config Flow** - Easy setup via Home Assistant UI (Settings → Devices & Services → Add Integration)
-- **Admin Panel** - User-friendly configuration panel with drag-and-drop file upload
-- **Dark/Light Mode Support** - Header bar automatically adapts to your theme
-- **Multi-language** - Supports English and Traditional Chinese
-
-## Screenshots
-
-### Admin Panel
-The admin panel provides detailed descriptions for each setting location.
-
-### Sidebar Branding
-Your custom logo and brand name appear in the sidebar.
+- Replace Home Assistant logo with your own
+- Custom favicon
+- Custom sidebar title
+- Custom document (browser tab) title
+- Text replacement mapping (e.g., "Home Assistant" → "My Smart Home")
+- Dark mode logo support
+- Admin panel with drag-and-drop file upload
 
 ## Installation
 
@@ -28,27 +19,47 @@ Your custom logo and brand name appear in the sidebar.
 1. Open HACS in your Home Assistant instance
 2. Click on "Integrations"
 3. Click the three dots in the top right corner and select "Custom repositories"
-4. Add this repository URL: `https://github.com/WOOWTECH/Ha_rebrand_manager`
-5. Select "Integration" as the category
-6. Click "Install"
-7. Restart Home Assistant
+4. Add this repository URL and select "Integration" as the category
+5. Click "Install"
+6. Restart Home Assistant
 
 ### Manual Installation
 
-1. Download the `ha_rebrand` folder from this repository
-2. Copy it to your `config/custom_components/` directory
-3. Restart Home Assistant
+1. Copy the `ha_rebrand` folder to your `custom_components` directory
+2. Restart Home Assistant
 
-## Setup
+## Configuration
 
-### Step 1: Add the Integration
+### Option 1: Using the Admin Panel (Recommended)
 
-1. Go to **Settings → Devices & Services**
-2. Click **Add Integration**
-3. Search for "HA Rebrand"
-4. Click to add
+1. After installation, go to the sidebar and click "Rebrand"
+2. Configure your branding using the UI:
+   - Upload your logo and favicon
+   - Set your brand name and titles
+   - Add text replacements
+3. Click "Apply Changes" to test your configuration
+4. Click "Save to File" to create a permanent configuration
 
-### Step 2: Enable the Injector Script
+### Option 2: Manual YAML Configuration
+
+Add the following to your `configuration.yaml`:
+
+```yaml
+ha_rebrand:
+  brand_name: "My Smart Home"
+  logo: "/local/my-logo.svg"
+  logo_dark: "/local/my-logo-dark.svg"  # Optional
+  favicon: "/local/favicon.ico"
+  sidebar_title: "My Smart Home"
+  document_title: "My Smart Home"
+  replacements:
+    "Home Assistant": "My Smart Home"
+    "HA": "MSH"
+```
+
+### Enable the Injector Script
+
+To enable automatic branding replacement throughout the interface, add the injector script to your Lovelace configuration.
 
 Add this to your `configuration.yaml`:
 
@@ -60,75 +71,71 @@ frontend:
 
 Then restart Home Assistant.
 
-### Step 3: Configure Your Branding
-
-1. Click "Rebrand" in the sidebar
-2. Set your brand name and titles
-3. Upload your logo and favicon
-4. (Optional) Add text replacements
-5. Click "Save Configuration"
-6. Restart Home Assistant to apply changes
-
 ## Configuration Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `brand_name` | string | "Home Assistant" | The main brand name |
-| `sidebar_title` | string | (uses brand_name) | Title shown in sidebar |
-| `document_title` | string | (uses brand_name) | Browser tab title |
-| `logo` | string | null | Path to logo image |
+| `logo` | string | null | Path to logo image (supports `/local/` paths and URLs) |
 | `logo_dark` | string | null | Path to dark mode logo (optional) |
 | `favicon` | string | null | Path to favicon |
+| `sidebar_title` | string | brand_name | Title shown in sidebar |
+| `document_title` | string | brand_name | Browser tab title |
 | `replacements` | dict | {} | Text replacement mapping |
 
 ## File Paths
 
-Place your custom images in the `/config/www/ha_rebrand/` directory.
+Place your custom images in the `/config/www/` directory. They will be accessible via `/local/` URLs.
+
+Example:
+- File location: `/config/www/my-logo.svg`
+- Configuration: `logo: "/local/my-logo.svg"`
 
 Supported image formats:
-- PNG, JPG/JPEG, SVG, ICO, WebP
+- PNG
+- JPG/JPEG
+- SVG
+- ICO (for favicon)
+- WebP
 
-## Where Settings Apply
+## How It Works
 
-| Setting | Location |
-|---------|----------|
-| Brand Name | Settings page title, About page, System info |
-| Sidebar Title | Top of the sidebar, replaces "Home Assistant" text |
-| Document Title | Browser tab title (e.g., "Overview – Your Brand") |
-| Logo | Sidebar logo area |
-| Logo (Dark) | Sidebar logo in dark mode |
-| Favicon | Browser tab icon |
-| Text Replacements | All pages including Shadow DOM content |
+1. **Backend Component**: Manages configuration, file uploads, and provides WebSocket/HTTP APIs
+2. **Admin Panel**: Provides a user-friendly interface to configure branding
+3. **Injector Script**: Runs on every page load and:
+   - Replaces the favicon
+   - Updates the document title
+   - Replaces the sidebar logo and title
+   - Performs text replacements throughout the DOM
+   - Monitors for dynamic content changes
 
 ## Troubleshooting
 
-### Branding not showing after restart
+### Logo not showing
 
-1. Clear browser cache with `Ctrl+Shift+R`
-2. Check if injector is loaded in `configuration.yaml`
-3. Verify config.json exists in `/config/www/ha_rebrand/`
-
-### Logo not appearing
-
-1. Check file exists in `/config/www/ha_rebrand/`
-2. Verify file permissions
+1. Make sure the file exists in `/config/www/`
+2. Clear your browser cache
 3. Check browser console for errors
+
+### Text replacements not working
+
+1. Ensure the injector script is loaded (check `frontend.extra_module_url`)
+2. Restart Home Assistant after configuration changes
+3. Hard refresh your browser (Ctrl+Shift+R)
 
 ### Admin panel not appearing
 
-1. Ensure integration is added via Settings → Devices & Services
-2. Check Home Assistant logs for errors
-3. Verify you have admin privileges
+1. Check if the component loaded successfully in the logs
+2. Ensure you have admin privileges
+3. Restart Home Assistant
+
+## Limitations
+
+- Some deeply nested elements in the HA core UI may not be replaced
+- Text replacements work on visible text only, not on element attributes
+- Changes to configuration require a page refresh to take effect
 
 ## Version History
-
-### 2.0.0
-- Add Config Flow for UI-based integration setup
-- Add dark/light mode support for header bar
-- Add detailed Chinese descriptions for each setting
-- Fix sidebar logo injection for newer HA versions
-- Fix Shadow DOM traversal for sidebar title replacement
-- Improve error handling for file uploads
 
 ### 1.0.0
 - Initial release
@@ -143,4 +150,4 @@ MIT License
 
 ## Support
 
-For issues and feature requests, please use the [GitHub issue tracker](https://github.com/WOOWTECH/Ha_rebrand_manager/issues).
+For issues and feature requests, please use the GitHub issue tracker.
