@@ -57,19 +57,11 @@ ha_rebrand:
     "HA": "MSH"
 ```
 
-### Enable the Injector Script
+### Injector Script (Auto-Registered)
 
-To enable automatic branding replacement throughout the interface, add the injector script to your Lovelace configuration.
+The injector script that applies branding changes throughout the interface is **automatically registered** when the integration loads. No manual configuration is needed.
 
-Add this to your `configuration.yaml`:
-
-```yaml
-frontend:
-  extra_module_url:
-    - /local/ha_rebrand/ha-rebrand-injector.js
-```
-
-Then restart Home Assistant.
+> **Note:** In previous versions, you needed to manually add `extra_module_url` to your configuration.yaml. This is no longer required as of version 2.1.0.
 
 ## Configuration Options
 
@@ -136,6 +128,14 @@ Supported image formats:
 - Changes to configuration require a page refresh to take effect
 
 ## Version History
+
+### 2.1.0
+- **Auto-register injector script** - No longer need to manually add `extra_module_url` to configuration.yaml
+- Injector script is automatically loaded when integration starts
+
+### 2.0.0
+- Config flow support
+- Improved admin panel
 
 ### 1.0.0
 - Initial release

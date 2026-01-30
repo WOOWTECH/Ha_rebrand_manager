@@ -214,6 +214,12 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
         StaticPathConfig("/ha_rebrand", frontend_dest, cache_headers=False)
     ])
 
+    # Auto-register the injector script as extra module URL
+    # This eliminates the need for manual configuration.yaml editing
+    injector_url = "/local/ha_rebrand/ha-rebrand-injector.js"
+    frontend.add_extra_js_url(hass, injector_url, es5=False)
+    _LOGGER.info("Registered rebrand injector script: %s", injector_url)
+
 
 @callback
 def _async_register_websocket_commands(hass: HomeAssistant) -> None:
