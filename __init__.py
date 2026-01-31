@@ -636,7 +636,7 @@ class RebrandAuthorizeView(HomeAssistantView):
   --light-primary-color: {primary_color}40 !important;
   --dark-primary-color: {primary_color} !important;
 }}
-ha-authorize {{
+ha-authorize, ha-auth-flow, ha-local-auth-flow, ha-pick-auth-provider {{
   --primary-color: {primary_color} !important;
   --mdc-theme-primary: {primary_color} !important;
   --mdc-theme-on-primary: #ffffff !important;
