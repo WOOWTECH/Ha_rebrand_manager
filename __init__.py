@@ -4,8 +4,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 from functools import partial
+from html import escape as html_escape
 from typing import Any
 
 import voluptuous as vol
@@ -44,8 +46,34 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 # Pre-compiled regex pattern for SVG replacement (performance optimization)
-import re
 _SVG_PATTERN = re.compile(r'<svg[^>]*viewBox="0 0 240 240"[^>]*>.*?</svg>', re.DOTALL)
+
+# Color validation pattern
+_COLOR_PATTERN = re.compile(r'^#[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3})?(?:[0-9A-Fa-f]{2})?$')
+
+
+def _escape_js_string(s: str) -> str:
+    """Escape string for safe JavaScript embedding, preventing XSS."""
+    if not s:
+        return ""
+    return (s.replace('\\', '\\\\')
+             .replace('"', '\\"')
+             .replace("'", "\\'")
+             .replace('\n', '\\n')
+             .replace('\r', '\\r')
+             .replace('<', '\\x3c')
+             .replace('>', '\\x3e'))
+
+
+def _validate_color(color: str) -> str:
+    """Validate CSS color value format. Returns empty string if invalid."""
+    if not color:
+        return ""
+    # Only allow #RGB, #RRGGBB, #RRGGBBAA formats
+    if _COLOR_PATTERN.match(color):
+        return color
+    _LOGGER.warning(f"Invalid color format rejected: {color}")
+    return ""
 
 type HaRebrandConfigEntry = ConfigEntry
 
@@ -84,7 +112,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) -> bool:
     """Set up HA Rebrand from a config entry."""
-    _LOGGER.warning("HA Rebrand: Setting up from config entry")  # Use WARNING to ensure it shows
+    _LOGGER.info("HA Rebrand: Setting up from config entry")
 
     # Initialize data structure
     hass.data.setdefault(DOMAIN, {})
@@ -127,7 +155,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) ->
     # since Home Assistant's frontend component registers it as a static file
     _unregister_authorize_static_path(hass)
     hass.http.register_view(RebrandAuthorizeView(hass))
-    _LOGGER.warning("HA Rebrand: Registered RebrandAuthorizeView for /auth/authorize")
+    _LOGGER.info("HA Rebrand: Registered RebrandAuthorizeView for /auth/authorize")
 
     # Register panel (only once)
     if not hass.data.get(DATA_PANEL_REGISTERED):
@@ -332,15 +360,17 @@ a[href*="openhomefoundation"],
 </style>'''
 
                 # Strategy 2: Direct HTML replacement - replace the SVG with img tag
-                img_tag = f'<img src="{logo}" alt="{brand_name}" class="ha-rebrand-logo">'
+                # Use html_escape to prevent XSS via logo URL or brand_name
+                img_tag = f'<img src="{html_escape(logo)}" alt="{html_escape(brand_name)}" class="ha-rebrand-logo">'
 
                 # Replace the SVG in #ha-launch-screen using pre-compiled pattern
                 html = _SVG_PATTERN.sub(img_tag, html, count=1)
 
                 # Strategy 3: JavaScript backup - monitor and fix if JS recreates SVG
+                # Use _escape_js_string to prevent XSS via JavaScript string injection
                 backup_script = f'''<script>
 (function(){{
-  var logo="{logo}",logoD="{logo_dark}",brand="{brand_name}";
+  var logo="{_escape_js_string(logo)}",logoD="{_escape_js_string(logo_dark)}",brand="{_escape_js_string(brand_name)}";
   function fix(){{
     var ls=document.getElementById("ha-launch-screen");
     if(!ls)return;
@@ -609,26 +639,27 @@ class RebrandAuthorizeView(HomeAssistantView):
 
         # Only modify if we have a custom logo
         if logo_url:
-            # Replace the logo image src
+            # Replace the logo image src (use html_escape to prevent XSS)
             html_content = html_content.replace(
                 'src="/static/icons/favicon-192x192.png"',
-                f'src="{logo_url}"'
+                f'src="{html_escape(logo_url)}"'
             )
 
-        # Replace alt text
+        # Replace alt text (use html_escape to prevent XSS)
         html_content = html_content.replace(
             'alt="Home Assistant"',
-            f'alt="{brand_name}"'
+            f'alt="{html_escape(brand_name)}"'
         )
 
-        # Replace page title
+        # Replace page title (use html_escape to prevent XSS)
         html_content = html_content.replace(
             '<title>Home Assistant</title>',
-            f'<title>{document_title}</title>'
+            f'<title>{html_escape(document_title)}</title>'
         )
 
         # Inject primary color CSS for login page styling
-        primary_color = config.get(CONF_PRIMARY_COLOR)
+        # Validate color to prevent CSS injection attacks
+        primary_color = _validate_color(config.get(CONF_PRIMARY_COLOR))
         if primary_color:
             color_style = f'''<style>
 :root, html {{
