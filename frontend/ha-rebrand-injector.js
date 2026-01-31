@@ -12,26 +12,27 @@
 
   // Use static JSON file instead of API endpoint to avoid routing issues
   const REBRAND_CONFIG_URL = '/local/ha_rebrand/config.json';
-  const POLL_INTERVAL = 500; // ms between DOM checks
-  const MAX_POLLS = 60; // Maximum number of polls (30 seconds)
   const CONFIG_RETRY_INTERVAL = 2000; // ms between config fetch retries
   const MAX_CONFIG_RETRIES = 5; // Maximum config fetch retry attempts
+  const OBSERVER_TIMEOUT = 300000; // 5 minutes - disconnect observer after this time
 
   let config = null;
-  let pollCount = 0;
   let configRetryCount = 0;
   let isInitialized = false;
+  let mainObserver = null;
+
+  // Cached element references for performance
+  let cachedSidebar = null;
+  let cachedHaMain = null;
 
   /**
    * Fetch rebrand configuration from the API
+   * Uses browser caching for better performance - config.json is updated on save
    */
   async function fetchConfig() {
     try {
-      // Add cache-busting query parameter to avoid browser caching
-      const cacheBuster = `?_t=${Date.now()}`;
-      const response = await fetch(REBRAND_CONFIG_URL + cacheBuster, {
-        credentials: 'same-origin',  // Include auth cookies
-        cache: 'no-store'  // Force no caching
+      const response = await fetch(REBRAND_CONFIG_URL, {
+        credentials: 'same-origin'  // Include auth cookies
       });
       if (response.ok) {
         config = await response.json();
@@ -108,8 +109,17 @@
 
   /**
    * Replace sidebar logo and title
+   * Uses cached element references for better performance
    */
   function replaceSidebar() {
+    // Use cached sidebar if still in DOM
+    if (cachedSidebar && cachedSidebar.isConnected) {
+      // Check if shadowRoot is still accessible
+      if (cachedSidebar.shadowRoot) {
+        return applySidebarChanges(cachedSidebar.shadowRoot);
+      }
+    }
+
     // Try to find the sidebar through Shadow DOM hierarchy
     let sidebar = document.querySelector('ha-sidebar');
 
@@ -117,17 +127,31 @@
     if (!sidebar) {
       const ha = document.querySelector('home-assistant');
       if (ha?.shadowRoot) {
-        const haMain = ha.shadowRoot.querySelector('home-assistant-main');
-        if (haMain?.shadowRoot) {
-          sidebar = haMain.shadowRoot.querySelector('ha-sidebar');
+        // Use cached haMain or find it
+        if (!cachedHaMain || !cachedHaMain.isConnected) {
+          cachedHaMain = ha.shadowRoot.querySelector('home-assistant-main');
+        }
+        if (cachedHaMain?.shadowRoot) {
+          sidebar = cachedHaMain.shadowRoot.querySelector('ha-sidebar');
         }
       }
     }
 
     if (!sidebar) return false;
 
+    // Cache the sidebar reference
+    cachedSidebar = sidebar;
+
     const shadowRoot = sidebar.shadowRoot;
     if (!shadowRoot) return false;
+
+    return applySidebarChanges(shadowRoot);
+  }
+
+  /**
+   * Apply sidebar changes (extracted for reuse with cached element)
+   */
+  function applySidebarChanges(shadowRoot) {
 
     // Replace sidebar title
     if (config?.sidebar_title) {
@@ -168,12 +192,19 @@
               customLogo.src = config.logo_dark;
             }
 
-            // Listen for theme changes
-            const themeObserver = new MutationObserver(() => {
-              const isDark = document.body.classList.contains('dark');
-              customLogo.src = isDark ? config.logo_dark : config.logo;
-            });
-            themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+            // Listen for theme changes (single observer, stored to avoid duplicates)
+            if (!window._rebrandThemeObserver) {
+              window._rebrandThemeObserver = new MutationObserver(() => {
+                const isDark = document.body.classList.contains('dark');
+                const logos = document.querySelectorAll('.ha-rebrand-logo');
+                logos.forEach(logo => {
+                  if (logo.tagName === 'IMG') {
+                    logo.src = isDark ? config.logo_dark : config.logo;
+                  }
+                });
+              });
+              window._rebrandThemeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+            }
           }
 
           // Insert logo at the beginning of menu (before title)
@@ -271,6 +302,7 @@
 
   /**
    * Replace HA logo in various locations
+   * Note: Loading screen logo is now handled by server-side HTML injection in __init__.py
    */
   function replaceLogos() {
     if (!config?.logo) return;
@@ -296,8 +328,7 @@
     // Replace login page logo (ha-authorize)
     replaceLoginLogo();
 
-    // Replace loading screen logo (ha-init-page)
-    replaceLoadingScreenLogo();
+    // Note: replaceLoadingScreenLogo() removed - handled by server-side CSS/JS injection
   }
 
   /**
@@ -509,40 +540,93 @@
   }
 
   /**
-   * Poll for DOM changes and apply rebrand
+   * Wait for sidebar to appear using MutationObserver instead of polling
+   * This is more efficient than the old 30-second polling approach
    */
-  function pollAndApply() {
-    pollCount++;
+  function waitForSidebar() {
+    return new Promise((resolve) => {
+      // First, try immediate application
+      if (applyRebrand()) {
+        console.log('[HA Rebrand] Successfully applied branding immediately');
+        isInitialized = true;
+        resolve(true);
+        return;
+      }
 
-    const success = applyRebrand();
+      // Use MutationObserver to wait for sidebar
+      const observer = new MutationObserver((mutations, obs) => {
+        if (applyRebrand()) {
+          console.log('[HA Rebrand] Successfully applied branding after DOM ready');
+          isInitialized = true;
+          obs.disconnect();
+          resolve(true);
+        }
+      });
 
-    if (!success && pollCount < MAX_POLLS) {
-      setTimeout(pollAndApply, POLL_INTERVAL);
-    } else if (success) {
-      console.log('[HA Rebrand] Successfully applied branding');
-      isInitialized = true;
+      // Only observe home-assistant element for better performance
+      const ha = document.querySelector('home-assistant');
+      if (ha) {
+        observer.observe(ha, { childList: true, subtree: true });
+      } else {
+        // Fallback: observe body but only for direct children
+        observer.observe(document.body, { childList: true });
+      }
 
-      // Set up mutation observer for dynamic content
-      setupMutationObserver();
-    }
+      // Timeout after 10 seconds instead of 30
+      setTimeout(() => {
+        observer.disconnect();
+        if (!isInitialized) {
+          console.warn('[HA Rebrand] Timeout waiting for sidebar, applying available changes');
+          applyRebrand();
+          isInitialized = true;
+        }
+        resolve(isInitialized);
+      }, 10000);
+    });
   }
 
   /**
    * Set up mutation observer to handle dynamic content
+   * Uses targeted observation for better performance
    */
   function setupMutationObserver() {
-    const observer = new MutationObserver((mutations) => {
+    // Disconnect existing observer if any
+    if (mainObserver) {
+      mainObserver.disconnect();
+    }
+
+    let debounceTimer = null;
+
+    mainObserver = new MutationObserver((mutations) => {
       // Debounce the rebrand application
-      clearTimeout(window._rebrandTimeout);
-      window._rebrandTimeout = setTimeout(() => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
         applyRebrand();
-      }, 100);
+      }, 150);
     });
 
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-    });
+    // Try to observe only the main content area for better performance
+    const ha = document.querySelector('home-assistant');
+    if (ha?.shadowRoot) {
+      const haMain = ha.shadowRoot.querySelector('home-assistant-main');
+      if (haMain) {
+        mainObserver.observe(haMain, { childList: true, subtree: true });
+      } else {
+        // Fallback: observe home-assistant shadow root
+        mainObserver.observe(ha.shadowRoot, { childList: true, subtree: true });
+      }
+    } else {
+      // Fallback: observe body but with limited depth
+      mainObserver.observe(document.body, { childList: true, subtree: true });
+    }
+
+    // Disconnect observer after timeout to prevent memory leaks
+    setTimeout(() => {
+      if (mainObserver) {
+        mainObserver.disconnect();
+        console.log('[HA Rebrand] Observer disconnected after timeout');
+      }
+    }, OBSERVER_TIMEOUT);
 
     // Also observe for route changes
     window.addEventListener('location-changed', () => {
@@ -576,8 +660,11 @@
     // Reset retry count on success
     configRetryCount = 0;
 
-    // Start polling for DOM
-    pollAndApply();
+    // Wait for sidebar using event-based approach (replaces 30-second polling)
+    await waitForSidebar();
+
+    // Set up mutation observer for dynamic content
+    setupMutationObserver();
   }
 
   // Start when DOM is ready

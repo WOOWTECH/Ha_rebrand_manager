@@ -43,6 +43,10 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Pre-compiled regex pattern for SVG replacement (performance optimization)
+import re
+_SVG_PATTERN = re.compile(r'<svg[^>]*viewBox="0 0 240 240"[^>]*>.*?</svg>', re.DOTALL)
+
 type HaRebrandConfigEntry = ConfigEntry
 
 DATA_PANEL_REGISTERED = f"{DOMAIN}_panel_registered"
@@ -298,22 +302,40 @@ def _patch_index_view(hass: HomeAssistant) -> None:
                 brand_name = config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)
                 hide_ohf = config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True)
 
-                import re
-
-                # Strategy 1: CSS to immediately hide SVG and show img
-                # This ensures even if JS re-creates the SVG, it stays hidden
+                # Strategy 1: Enhanced CSS to immediately hide SVG and show img
+                # Multiple selectors to ensure hiding works in all scenarios
                 css_style = f'''<style>
-#ha-launch-screen svg {{ display: none !important; visibility: hidden !important; }}
-#ha-launch-screen > img {{ display: block !important; height: 120px; width: auto; max-width: 200px; object-fit: contain; margin: 0 auto; }}
-.ohf-logo {{ display: none !important; }}
+#ha-launch-screen svg,
+#ha-launch-screen ha-svg-icon,
+home-assistant svg[viewBox="0 0 240 240"] {{
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+}}
+#ha-launch-screen > img,
+#ha-launch-screen img.ha-rebrand-logo {{
+  display: block !important;
+  height: 120px;
+  width: auto;
+  max-width: 200px;
+  object-fit: contain;
+  margin: 0 auto;
+}}
+.ohf-logo,
+a[href*="openhomefoundation"],
+#ha-launch-screen a[href*="openhomefoundation"] {{
+  display: none !important;
+  visibility: hidden !important;
+}}
 </style>'''
 
                 # Strategy 2: Direct HTML replacement - replace the SVG with img tag
                 img_tag = f'<img src="{logo}" alt="{brand_name}" class="ha-rebrand-logo">'
 
-                # Replace the SVG in #ha-launch-screen
-                svg_pattern = r'<svg[^>]*viewBox="0 0 240 240"[^>]*>.*?</svg>'
-                html = re.sub(svg_pattern, img_tag, html, count=1, flags=re.DOTALL)
+                # Replace the SVG in #ha-launch-screen using pre-compiled pattern
+                html = _SVG_PATTERN.sub(img_tag, html, count=1)
 
                 # Strategy 3: JavaScript backup - monitor and fix if JS recreates SVG
                 backup_script = f'''<script>
