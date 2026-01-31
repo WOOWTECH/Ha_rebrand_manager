@@ -9,6 +9,8 @@ from functools import partial
 from typing import Any
 
 import voluptuous as vol
+from aiohttp import web
+from pathlib import Path
 
 from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import HomeAssistantView, StaticPathConfig
@@ -26,6 +28,8 @@ from .const import (
     CONF_REPLACEMENTS,
     CONF_SIDEBAR_TITLE,
     CONF_DOCUMENT_TITLE,
+    CONF_HIDE_OPEN_HOME_FOUNDATION,
+    CONF_PRIMARY_COLOR,
     DEFAULT_BRAND_NAME,
     DEFAULT_REPLACEMENTS,
     MAX_FILE_SIZE,
@@ -38,6 +42,10 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Pre-compiled regex pattern for SVG replacement (performance optimization)
+import re
+_SVG_PATTERN = re.compile(r'<svg[^>]*viewBox="0 0 240 240"[^>]*>.*?</svg>', re.DOTALL)
 
 type HaRebrandConfigEntry = ConfigEntry
 
@@ -76,7 +84,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) -> bool:
     """Set up HA Rebrand from a config entry."""
-    _LOGGER.info("Setting up HA Rebrand from config entry")
+    _LOGGER.warning("HA Rebrand: Setting up from config entry")  # Use WARNING to ensure it shows
 
     # Initialize data structure
     hass.data.setdefault(DOMAIN, {})
@@ -98,6 +106,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) ->
         CONF_SIDEBAR_TITLE: config.get(CONF_SIDEBAR_TITLE, config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)),
         CONF_DOCUMENT_TITLE: config.get(CONF_DOCUMENT_TITLE, config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)),
         CONF_REPLACEMENTS: config.get(CONF_REPLACEMENTS, DEFAULT_REPLACEMENTS),
+        CONF_HIDE_OPEN_HOME_FOUNDATION: config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
+        CONF_PRIMARY_COLOR: config.get(CONF_PRIMARY_COLOR),
         "uploads_dir": uploads_dir,
     }
 
@@ -111,6 +121,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) ->
     hass.http.register_view(RebrandConfigView(hass))
     hass.http.register_view(RebrandUploadView(hass))
     hass.http.register_view(RebrandSaveConfigView(hass))
+
+    # Register custom authorize view to replace login page logo
+    # First, we need to remove the existing static route for /auth/authorize
+    # since Home Assistant's frontend component registers it as a static file
+    _unregister_authorize_static_path(hass)
+    hass.http.register_view(RebrandAuthorizeView(hass))
+    _LOGGER.warning("HA Rebrand: Registered RebrandAuthorizeView for /auth/authorize")
 
     # Register panel (only once)
     if not hass.data.get(DATA_PANEL_REGISTERED):
@@ -182,6 +199,8 @@ async def _async_write_config_json(hass: HomeAssistant) -> None:
         "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
         "document_title": config.get(CONF_DOCUMENT_TITLE),
         "replacements": config.get(CONF_REPLACEMENTS, {}),
+        "hide_open_home_foundation": config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
+        "primary_color": config.get(CONF_PRIMARY_COLOR),
     }
     uploads_dir = config.get("uploads_dir", hass.config.path("www", "ha_rebrand"))
     config_json_path = os.path.join(uploads_dir, "config.json")
@@ -214,11 +233,150 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
         StaticPathConfig("/ha_rebrand", frontend_dest, cache_headers=False)
     ])
 
-    # Auto-register the injector script as extra module URL
-    # This eliminates the need for manual configuration.yaml editing
-    injector_url = "/local/ha_rebrand/ha-rebrand-injector.js"
-    frontend.add_extra_js_url(hass, injector_url, es5=False)
-    _LOGGER.info("Registered rebrand injector script: %s", injector_url)
+    # Register the injector script to be loaded on every page (for post-auth pages)
+    frontend.add_extra_js_url(hass, "/local/ha_rebrand/ha-rebrand-injector.js")
+
+    # Patch IndexView to inject early branding script for loading screen
+    _patch_index_view(hass)
+
+
+def _unregister_authorize_static_path(hass: HomeAssistant) -> None:
+    """Remove the existing /auth/authorize static path so we can register our custom view."""
+    try:
+        app = hass.http.app
+        router = app.router
+
+        # Find and remove the resource for /auth/authorize
+        resources_to_remove = []
+        for resource in router.resources():
+            # Check if this resource matches /auth/authorize
+            if hasattr(resource, '_path') and resource._path == '/auth/authorize':
+                resources_to_remove.append(resource)
+            elif hasattr(resource, 'canonical') and resource.canonical == '/auth/authorize':
+                resources_to_remove.append(resource)
+            elif hasattr(resource, 'url_for'):
+                try:
+                    # Try to get the URL
+                    url = str(resource.url_for())
+                    if url == '/auth/authorize':
+                        resources_to_remove.append(resource)
+                except Exception:
+                    pass
+
+        for resource in resources_to_remove:
+            # aiohttp doesn't have a clean way to remove resources,
+            # but we can unindex it from the router's name lookup
+            if hasattr(router, 'unindex_resource'):
+                router.unindex_resource(resource)
+            # Also remove from _resources list if possible
+            if hasattr(router, '_resources') and resource in router._resources:
+                router._resources.remove(resource)
+            _LOGGER.warning(f"HA Rebrand: Removed existing /auth/authorize resource: {resource}")
+
+        if not resources_to_remove:
+            _LOGGER.debug("HA Rebrand: No existing /auth/authorize resource found to remove")
+
+    except Exception as e:
+        _LOGGER.warning(f"HA Rebrand: Could not remove existing /auth/authorize route: {e}")
+
+
+def _patch_index_view(hass: HomeAssistant) -> None:
+    """Patch IndexView to inject early branding script for loading screen."""
+    try:
+        original_get_template = frontend.IndexView.get_template
+
+        def patched_get_template(self):
+            tpl = original_get_template(self)
+            original_render = tpl.render
+
+            def patched_render(*args, **kwargs):
+                html = original_render(*args, **kwargs)
+                config = hass.data.get(DOMAIN, {})
+
+                # Only inject if we have a logo configured
+                logo = config.get(CONF_LOGO)
+                if not logo:
+                    return html
+
+                logo_dark = config.get(CONF_LOGO_DARK) or logo
+                brand_name = config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)
+                hide_ohf = config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True)
+
+                # Strategy 1: Enhanced CSS to immediately hide SVG and show img
+                # Multiple selectors to ensure hiding works in all scenarios
+                css_style = f'''<style>
+#ha-launch-screen svg,
+#ha-launch-screen ha-svg-icon,
+home-assistant svg[viewBox="0 0 240 240"] {{
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+}}
+#ha-launch-screen > img,
+#ha-launch-screen img.ha-rebrand-logo {{
+  display: block !important;
+  height: 120px;
+  width: auto;
+  max-width: 200px;
+  object-fit: contain;
+  margin: 0 auto;
+}}
+.ohf-logo,
+a[href*="openhomefoundation"],
+#ha-launch-screen a[href*="openhomefoundation"] {{
+  display: none !important;
+  visibility: hidden !important;
+}}
+</style>'''
+
+                # Strategy 2: Direct HTML replacement - replace the SVG with img tag
+                img_tag = f'<img src="{logo}" alt="{brand_name}" class="ha-rebrand-logo">'
+
+                # Replace the SVG in #ha-launch-screen using pre-compiled pattern
+                html = _SVG_PATTERN.sub(img_tag, html, count=1)
+
+                # Strategy 3: JavaScript backup - monitor and fix if JS recreates SVG
+                backup_script = f'''<script>
+(function(){{
+  var logo="{logo}",logoD="{logo_dark}",brand="{brand_name}";
+  function fix(){{
+    var ls=document.getElementById("ha-launch-screen");
+    if(!ls)return;
+    var svg=ls.querySelector("svg");
+    if(svg){{svg.style.display="none";svg.style.visibility="hidden";}}
+    var img=ls.querySelector("img.ha-rebrand-logo");
+    if(!img){{
+      img=document.createElement("img");
+      img.src=logo;
+      img.alt=brand;
+      img.className="ha-rebrand-logo";
+      img.style.cssText="display:block;height:120px;width:auto;max-width:200px;object-fit:contain;margin:0 auto;";
+      if(window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches&&logoD){{img.src=logoD;}}
+      if(svg){{svg.parentNode.insertBefore(img,svg);}}
+      else{{ls.insertBefore(img,ls.firstChild);}}
+    }}
+  }}
+  fix();
+  var obs=new MutationObserver(fix);
+  obs.observe(document.body,{{childList:true,subtree:true}});
+  setTimeout(function(){{obs.disconnect();}},15000);
+}})();
+</script>'''
+
+                # Inject CSS and script into head
+                html = html.replace('</head>', css_style + backup_script + '</head>')
+
+                return html
+
+            tpl.render = patched_render
+            return tpl
+
+        frontend.IndexView.get_template = patched_get_template
+        _LOGGER.info("Successfully patched IndexView for early branding injection")
+    except Exception as e:
+        _LOGGER.warning(f"Failed to patch IndexView: {e}")
 
 
 @callback
@@ -245,6 +403,8 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
             "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
             "document_title": config.get(CONF_DOCUMENT_TITLE),
             "replacements": config.get(CONF_REPLACEMENTS, {}),
+            "hide_open_home_foundation": config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
+            "primary_color": config.get(CONF_PRIMARY_COLOR),
         })
 
     @websocket_api.websocket_command({
@@ -256,6 +416,8 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
         vol.Optional("sidebar_title"): cv.string,
         vol.Optional("document_title"): cv.string,
         vol.Optional("replacements"): vol.Schema({cv.string: cv.string}),
+        vol.Optional("hide_open_home_foundation"): cv.boolean,
+        vol.Optional("primary_color"): vol.Any(cv.string, None),
     })
     @websocket_api.require_admin
     @websocket_api.async_response
@@ -281,6 +443,10 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
             config[CONF_DOCUMENT_TITLE] = msg["document_title"]
         if "replacements" in msg:
             config[CONF_REPLACEMENTS] = msg["replacements"]
+        if "hide_open_home_foundation" in msg:
+            config[CONF_HIDE_OPEN_HOME_FOUNDATION] = msg["hide_open_home_foundation"]
+        if "primary_color" in msg:
+            config[CONF_PRIMARY_COLOR] = msg["primary_color"]
 
         hass.data[DOMAIN] = config
 
@@ -315,6 +481,8 @@ class RebrandConfigView(HomeAssistantView):
             "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
             "document_title": config.get(CONF_DOCUMENT_TITLE),
             "replacements": config.get(CONF_REPLACEMENTS, {}),
+            "hide_open_home_foundation": config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
+            "primary_color": config.get(CONF_PRIMARY_COLOR),
         })
 
 
@@ -390,6 +558,114 @@ class RebrandUploadView(HomeAssistantView):
         """Write file to disk."""
         with open(file_path, "wb") as f:
             f.write(content)
+
+
+class RebrandAuthorizeView(HomeAssistantView):
+    """Custom authorize view that serves modified authorize.html with custom branding."""
+
+    url = "/auth/authorize"
+    name = "api:ha_rebrand:authorize"
+    requires_auth = False  # Must be accessible without auth
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the view."""
+        self.hass = hass
+        self._authorize_html = None
+
+    def _read_authorize_html(self) -> str:
+        """Read authorize.html from hass_frontend package."""
+        try:
+            import hass_frontend
+            frontend_path = Path(hass_frontend.__file__).parent
+            authorize_path = frontend_path / "authorize.html"
+            if authorize_path.exists():
+                return authorize_path.read_text("utf-8")
+        except ImportError:
+            _LOGGER.warning("Could not import hass_frontend package")
+        except Exception as e:
+            _LOGGER.warning(f"Error reading authorize.html: {e}")
+        return None
+
+    async def get(self, request):
+        """Serve modified authorize.html with custom logo."""
+        # Read original HTML (cache it for performance)
+        if self._authorize_html is None:
+            self._authorize_html = await self.hass.async_add_executor_job(
+                self._read_authorize_html
+            )
+
+        if self._authorize_html is None:
+            _LOGGER.warning("Could not read authorize.html, falling back to default")
+            # Return 404 to let the next handler (static file) handle it
+            raise web.HTTPNotFound()
+
+        html_content = self._authorize_html
+
+        # Get custom branding config
+        config = self.hass.data.get(DOMAIN, {})
+        logo_url = config.get(CONF_LOGO)
+        brand_name = config.get(CONF_BRAND_NAME) or DEFAULT_BRAND_NAME
+        document_title = config.get(CONF_DOCUMENT_TITLE) or brand_name
+
+        # Only modify if we have a custom logo
+        if logo_url:
+            # Replace the logo image src
+            html_content = html_content.replace(
+                'src="/static/icons/favicon-192x192.png"',
+                f'src="{logo_url}"'
+            )
+
+        # Replace alt text
+        html_content = html_content.replace(
+            'alt="Home Assistant"',
+            f'alt="{brand_name}"'
+        )
+
+        # Replace page title
+        html_content = html_content.replace(
+            '<title>Home Assistant</title>',
+            f'<title>{document_title}</title>'
+        )
+
+        # Inject primary color CSS for login page styling
+        primary_color = config.get(CONF_PRIMARY_COLOR)
+        if primary_color:
+            color_style = f'''<style>
+:root, html {{
+  --primary-color: {primary_color} !important;
+  --light-primary-color: {primary_color}40 !important;
+  --dark-primary-color: {primary_color} !important;
+  --mdc-theme-primary: {primary_color} !important;
+  --ha-color-fill-primary-loud-resting: {primary_color} !important;
+  --ha-color-fill-primary-loud-active: {primary_color} !important;
+  --ha-color-fill-primary-loud-hover: {primary_color} !important;
+  --ha-color-fill-primary-normal-resting: {primary_color} !important;
+  --ha-color-fill-primary-normal-active: {primary_color} !important;
+  --ha-color-fill-primary-normal-hover: {primary_color} !important;
+}}
+ha-authorize, ha-auth-flow, ha-local-auth-flow, ha-pick-auth-provider {{
+  --primary-color: {primary_color} !important;
+  --mdc-theme-primary: {primary_color} !important;
+  --mdc-theme-on-primary: #ffffff !important;
+  --ha-color-fill-primary-loud-resting: {primary_color} !important;
+  --ha-color-fill-primary-loud-active: {primary_color} !important;
+  --ha-color-fill-primary-loud-hover: {primary_color} !important;
+}}
+mwc-button, ha-button {{
+  --mdc-theme-primary: {primary_color} !important;
+  --mdc-theme-on-primary: #ffffff !important;
+  --ha-color-fill-primary-loud-resting: {primary_color} !important;
+}}
+</style>'''
+            html_content = html_content.replace('</head>', color_style + '</head>')
+
+        _LOGGER.debug(f"Serving custom authorize page with logo: {logo_url}, primary_color: {primary_color}")
+
+        return web.Response(
+            text=html_content,
+            content_type="text/html",
+            charset="utf-8"
+        )
 
 
 class RebrandSaveConfigView(HomeAssistantView):
