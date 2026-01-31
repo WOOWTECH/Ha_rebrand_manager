@@ -298,22 +298,53 @@ def _patch_index_view(hass: HomeAssistant) -> None:
                 brand_name = config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)
                 hide_ohf = config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True)
 
-                # Method 1: Direct HTML replacement - replace the SVG with img tag
-                # The HA launch screen SVG starts with: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
                 import re
 
-                # Create replacement img tag
-                img_tag = f'<img src="{logo}" alt="{brand_name}" style="height:120px;width:auto;max-width:200px;object-fit:contain;">'
+                # Strategy 1: CSS to immediately hide SVG and show img
+                # This ensures even if JS re-creates the SVG, it stays hidden
+                css_style = f'''<style>
+#ha-launch-screen svg {{ display: none !important; visibility: hidden !important; }}
+#ha-launch-screen > img {{ display: block !important; height: 120px; width: auto; max-width: 200px; object-fit: contain; margin: 0 auto; }}
+.ohf-logo {{ display: none !important; }}
+</style>'''
+
+                # Strategy 2: Direct HTML replacement - replace the SVG with img tag
+                img_tag = f'<img src="{logo}" alt="{brand_name}" class="ha-rebrand-logo">'
 
                 # Replace the SVG in #ha-launch-screen
-                # Pattern matches the HA house logo SVG (viewBox="0 0 240 240" with blue #18BCF2 color)
                 svg_pattern = r'<svg[^>]*viewBox="0 0 240 240"[^>]*>.*?</svg>'
                 html = re.sub(svg_pattern, img_tag, html, count=1, flags=re.DOTALL)
 
-                # Method 2: Hide OHF badge via CSS if configured
-                if hide_ohf:
-                    ohf_hide_style = '<style>.ohf-logo{display:none!important}</style>'
-                    html = html.replace('</head>', ohf_hide_style + '</head>')
+                # Strategy 3: JavaScript backup - monitor and fix if JS recreates SVG
+                backup_script = f'''<script>
+(function(){{
+  var logo="{logo}",logoD="{logo_dark}",brand="{brand_name}";
+  function fix(){{
+    var ls=document.getElementById("ha-launch-screen");
+    if(!ls)return;
+    var svg=ls.querySelector("svg");
+    if(svg){{svg.style.display="none";svg.style.visibility="hidden";}}
+    var img=ls.querySelector("img.ha-rebrand-logo");
+    if(!img){{
+      img=document.createElement("img");
+      img.src=logo;
+      img.alt=brand;
+      img.className="ha-rebrand-logo";
+      img.style.cssText="display:block;height:120px;width:auto;max-width:200px;object-fit:contain;margin:0 auto;";
+      if(window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches&&logoD){{img.src=logoD;}}
+      if(svg){{svg.parentNode.insertBefore(img,svg);}}
+      else{{ls.insertBefore(img,ls.firstChild);}}
+    }}
+  }}
+  fix();
+  var obs=new MutationObserver(fix);
+  obs.observe(document.body,{{childList:true,subtree:true}});
+  setTimeout(function(){{obs.disconnect();}},15000);
+}})();
+</script>'''
+
+                # Inject CSS and script into head
+                html = html.replace('</head>', css_style + backup_script + '</head>')
 
                 return html
 
