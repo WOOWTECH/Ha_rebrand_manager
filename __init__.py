@@ -627,7 +627,23 @@ class RebrandAuthorizeView(HomeAssistantView):
             f'<title>{document_title}</title>'
         )
 
-        _LOGGER.debug(f"Serving custom authorize page with logo: {logo_url}")
+        # Inject primary color CSS for login page styling
+        primary_color = config.get(CONF_PRIMARY_COLOR)
+        if primary_color:
+            color_style = f'''<style>
+:root, html {{
+  --primary-color: {primary_color} !important;
+  --light-primary-color: {primary_color}40 !important;
+  --dark-primary-color: {primary_color} !important;
+}}
+ha-authorize {{
+  --primary-color: {primary_color} !important;
+  --mdc-theme-primary: {primary_color} !important;
+}}
+</style>'''
+            html_content = html_content.replace('</head>', color_style + '</head>')
+
+        _LOGGER.debug(f"Serving custom authorize page with logo: {logo_url}, primary_color: {primary_color}")
 
         return web.Response(
             text=html_content,
