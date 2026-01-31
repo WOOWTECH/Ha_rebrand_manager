@@ -298,75 +298,23 @@ def _patch_index_view(hass: HomeAssistant) -> None:
                 brand_name = config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)
                 hide_ohf = config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True)
 
-                # Create early injection script for loading screen
-                # Target: #ha-launch-screen (static HTML, not Shadow DOM)
-                inject_script = f'''
-<script>
-(function() {{
-  var config = {{
-    logo: "{logo}",
-    logo_dark: "{logo_dark}",
-    brand_name: "{brand_name}",
-    hide_open_home_foundation: {str(hide_ohf).lower()}
-  }};
+                # Method 1: Direct HTML replacement - replace the SVG with img tag
+                # The HA launch screen SVG starts with: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+                import re
 
-  function replaceLaunchScreenLogo() {{
-    // Target the static HTML launch screen, not Shadow DOM
-    var launchScreen = document.getElementById('ha-launch-screen');
-    if (!launchScreen) return;
+                # Create replacement img tag
+                img_tag = f'<img src="{logo}" alt="{brand_name}" style="height:120px;width:auto;max-width:200px;object-fit:contain;">'
 
-    // Replace the inline SVG logo with custom image
-    var svg = launchScreen.querySelector('svg');
-    if (svg && !svg.classList.contains('ha-rebrand-replaced')) {{
-      svg.classList.add('ha-rebrand-replaced');
+                # Replace the SVG in #ha-launch-screen
+                # Pattern matches the HA house logo SVG (viewBox="0 0 240 240" with blue #18BCF2 color)
+                svg_pattern = r'<svg[^>]*viewBox="0 0 240 240"[^>]*>.*?</svg>'
+                html = re.sub(svg_pattern, img_tag, html, count=1, flags=re.DOTALL)
 
-      var img = document.createElement('img');
-      img.src = config.logo;
-      img.alt = config.brand_name;
-      img.style.cssText = 'height: 120px; width: auto; max-width: 200px; object-fit: contain;';
+                # Method 2: Hide OHF badge via CSS if configured
+                if hide_ohf:
+                    ohf_hide_style = '<style>.ohf-logo{display:none!important}</style>'
+                    html = html.replace('</head>', ohf_hide_style + '</head>')
 
-      // Dark mode support
-      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && config.logo_dark) {{
-        img.src = config.logo_dark;
-      }}
-
-      svg.parentNode.replaceChild(img, svg);
-    }}
-
-    // Hide Open Home Foundation badge
-    if (config.hide_open_home_foundation) {{
-      var ohfLogo = launchScreen.querySelector('.ohf-logo');
-      if (ohfLogo) {{
-        ohfLogo.style.display = 'none';
-      }}
-    }}
-  }}
-
-  // Execute immediately (script is in <head>, runs before body renders)
-  // Use requestAnimationFrame to ensure DOM is ready
-  function tryReplace() {{
-    replaceLaunchScreenLogo();
-    // If launch screen exists but SVG not replaced yet, keep trying
-    var launchScreen = document.getElementById('ha-launch-screen');
-    if (launchScreen && launchScreen.querySelector('svg:not(.ha-rebrand-replaced)')) {{
-      requestAnimationFrame(tryReplace);
-    }}
-  }}
-
-  // Start trying immediately
-  if (document.readyState === 'loading') {{
-    document.addEventListener('DOMContentLoaded', tryReplace);
-  }} else {{
-    tryReplace();
-  }}
-
-  // Also try on first animation frame
-  requestAnimationFrame(tryReplace);
-}})();
-</script>
-'''
-                # Inject before </head>
-                html = html.replace('</head>', inject_script + '</head>')
                 return html
 
             tpl.render = patched_render
