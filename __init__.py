@@ -29,6 +29,7 @@ from .const import (
     CONF_SIDEBAR_TITLE,
     CONF_DOCUMENT_TITLE,
     CONF_HIDE_OPEN_HOME_FOUNDATION,
+    CONF_PRIMARY_COLOR,
     DEFAULT_BRAND_NAME,
     DEFAULT_REPLACEMENTS,
     MAX_FILE_SIZE,
@@ -102,6 +103,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) ->
         CONF_DOCUMENT_TITLE: config.get(CONF_DOCUMENT_TITLE, config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)),
         CONF_REPLACEMENTS: config.get(CONF_REPLACEMENTS, DEFAULT_REPLACEMENTS),
         CONF_HIDE_OPEN_HOME_FOUNDATION: config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
+        CONF_PRIMARY_COLOR: config.get(CONF_PRIMARY_COLOR),
         "uploads_dir": uploads_dir,
     }
 
@@ -194,6 +196,7 @@ async def _async_write_config_json(hass: HomeAssistant) -> None:
         "document_title": config.get(CONF_DOCUMENT_TITLE),
         "replacements": config.get(CONF_REPLACEMENTS, {}),
         "hide_open_home_foundation": config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
+        "primary_color": config.get(CONF_PRIMARY_COLOR),
     }
     uploads_dir = config.get("uploads_dir", hass.config.path("www", "ha_rebrand"))
     config_json_path = os.path.join(uploads_dir, "config.json")
@@ -296,6 +299,7 @@ def _patch_index_view(hass: HomeAssistant) -> None:
                 hide_ohf = config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True)
 
                 # Create early injection script for loading screen
+                # Target: #ha-launch-screen (static HTML, not Shadow DOM)
                 inject_script = f'''
 <script>
 (function() {{
@@ -306,62 +310,58 @@ def _patch_index_view(hass: HomeAssistant) -> None:
     hide_open_home_foundation: {str(hide_ohf).lower()}
   }};
 
-  function replaceLoadingLogo() {{
-    var initPage = document.querySelector('ha-init-page');
-    if (!initPage || !initPage.shadowRoot) return;
+  function replaceLaunchScreenLogo() {{
+    // Target the static HTML launch screen, not Shadow DOM
+    var launchScreen = document.getElementById('ha-launch-screen');
+    if (!launchScreen) return;
 
-    var shadowRoot = initPage.shadowRoot;
-
-    // Replace the main logo (ha-svg-icon)
-    var svgIcon = shadowRoot.querySelector('ha-svg-icon');
-    if (svgIcon && !svgIcon.classList.contains('ha-rebrand-hidden')) {{
-      svgIcon.classList.add('ha-rebrand-hidden');
-      svgIcon.style.display = 'none';
+    // Replace the inline SVG logo with custom image
+    var svg = launchScreen.querySelector('svg');
+    if (svg && !svg.classList.contains('ha-rebrand-replaced')) {{
+      svg.classList.add('ha-rebrand-replaced');
 
       var img = document.createElement('img');
       img.src = config.logo;
       img.alt = config.brand_name;
-      img.style.cssText = 'height: 120px; width: auto; max-width: 240px; object-fit: contain;';
+      img.style.cssText = 'height: 120px; width: auto; max-width: 200px; object-fit: contain;';
 
       // Dark mode support
-      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {{
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && config.logo_dark) {{
         img.src = config.logo_dark;
       }}
 
-      svgIcon.parentElement.insertBefore(img, svgIcon);
+      svg.parentNode.replaceChild(img, svg);
     }}
 
-    // Hide Open Home Foundation footer
+    // Hide Open Home Foundation badge
     if (config.hide_open_home_foundation) {{
-      var links = shadowRoot.querySelectorAll('a[href*="openhomefoundation"], a[href*="home-assistant"]');
-      links.forEach(function(link) {{
-        link.style.display = 'none';
-      }});
-
-      // Also hide by text content
-      var allElements = shadowRoot.querySelectorAll('*');
-      allElements.forEach(function(el) {{
-        if (el.textContent && (el.textContent.includes('Open Home Foundation') || el.textContent.includes('HOME ASSISTANT'))) {{
-          if (el.children.length === 0 || el.tagName === 'A') {{
-            el.style.display = 'none';
-          }}
-        }}
-      }});
+      var ohfLogo = launchScreen.querySelector('.ohf-logo');
+      if (ohfLogo) {{
+        ohfLogo.style.display = 'none';
+      }}
     }}
   }}
 
-  // Run immediately and observe for changes
-  var observer = new MutationObserver(function() {{
-    replaceLoadingLogo();
-  }});
-  observer.observe(document.body, {{ childList: true, subtree: true }});
-
-  // Also run when DOM is ready
-  if (document.readyState === 'loading') {{
-    document.addEventListener('DOMContentLoaded', replaceLoadingLogo);
-  }} else {{
-    replaceLoadingLogo();
+  // Execute immediately (script is in <head>, runs before body renders)
+  // Use requestAnimationFrame to ensure DOM is ready
+  function tryReplace() {{
+    replaceLaunchScreenLogo();
+    // If launch screen exists but SVG not replaced yet, keep trying
+    var launchScreen = document.getElementById('ha-launch-screen');
+    if (launchScreen && launchScreen.querySelector('svg:not(.ha-rebrand-replaced)')) {{
+      requestAnimationFrame(tryReplace);
+    }}
   }}
+
+  // Start trying immediately
+  if (document.readyState === 'loading') {{
+    document.addEventListener('DOMContentLoaded', tryReplace);
+  }} else {{
+    tryReplace();
+  }}
+
+  // Also try on first animation frame
+  requestAnimationFrame(tryReplace);
 }})();
 </script>
 '''
@@ -403,6 +403,7 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
             "document_title": config.get(CONF_DOCUMENT_TITLE),
             "replacements": config.get(CONF_REPLACEMENTS, {}),
             "hide_open_home_foundation": config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
+            "primary_color": config.get(CONF_PRIMARY_COLOR),
         })
 
     @websocket_api.websocket_command({
@@ -415,6 +416,7 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
         vol.Optional("document_title"): cv.string,
         vol.Optional("replacements"): vol.Schema({cv.string: cv.string}),
         vol.Optional("hide_open_home_foundation"): cv.boolean,
+        vol.Optional("primary_color"): vol.Any(cv.string, None),
     })
     @websocket_api.require_admin
     @websocket_api.async_response
@@ -442,6 +444,8 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
             config[CONF_REPLACEMENTS] = msg["replacements"]
         if "hide_open_home_foundation" in msg:
             config[CONF_HIDE_OPEN_HOME_FOUNDATION] = msg["hide_open_home_foundation"]
+        if "primary_color" in msg:
+            config[CONF_PRIMARY_COLOR] = msg["primary_color"]
 
         hass.data[DOMAIN] = config
 
@@ -477,6 +481,7 @@ class RebrandConfigView(HomeAssistantView):
             "document_title": config.get(CONF_DOCUMENT_TITLE),
             "replacements": config.get(CONF_REPLACEMENTS, {}),
             "hide_open_home_foundation": config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
+            "primary_color": config.get(CONF_PRIMARY_COLOR),
         })
 
 

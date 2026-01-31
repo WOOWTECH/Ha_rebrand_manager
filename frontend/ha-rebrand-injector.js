@@ -461,6 +461,38 @@
   }
 
   /**
+   * Apply primary color to the entire interface
+   * This changes --primary-color CSS variable which affects buttons, links, etc.
+   */
+  function applyPrimaryColor() {
+    if (!config?.primary_color) return;
+
+    // Create or update style element for color overrides
+    let styleEl = document.getElementById('ha-rebrand-colors');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'ha-rebrand-colors';
+      document.head.appendChild(styleEl);
+    }
+
+    // Apply the primary color via CSS custom properties
+    styleEl.textContent = `
+      :root {
+        --primary-color: ${config.primary_color} !important;
+        --light-primary-color: ${config.primary_color}40 !important;
+        --dark-primary-color: ${config.primary_color} !important;
+      }
+      html {
+        --primary-color: ${config.primary_color} !important;
+        --light-primary-color: ${config.primary_color}40 !important;
+        --dark-primary-color: ${config.primary_color} !important;
+      }
+    `;
+
+    console.log('[HA Rebrand] Applied primary color:', config.primary_color);
+  }
+
+  /**
    * Apply all rebrand changes
    */
   function applyRebrand() {
@@ -471,6 +503,7 @@
     const sidebarReplaced = replaceSidebar();
     replaceLogos();
     replaceText();
+    applyPrimaryColor();
 
     return sidebarReplaced;
   }

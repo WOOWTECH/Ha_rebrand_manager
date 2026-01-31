@@ -485,6 +485,7 @@ class HaRebrandPanel extends LitElement {
       document_title: "",
       replacements: {},
       hide_open_home_foundation: true,
+      primary_color: "",
     };
     this._loading = true;
     this._saving = false;
@@ -519,6 +520,7 @@ class HaRebrandPanel extends LitElement {
         document_title: result.document_title || "",
         replacements: result.replacements || {},
         hide_open_home_foundation: result.hide_open_home_foundation !== false,
+        primary_color: result.primary_color || "",
       };
     } catch (error) {
       console.error("Failed to load config:", error);
@@ -864,6 +866,31 @@ class HaRebrandPanel extends LitElement {
               />
               <span class="toggle-slider"></span>
             </label>
+          </div>
+
+          <div class="form-group" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--divider-color);">
+            <label>Primary Color (主色調)</label>
+            <p class="hint" style="margin-bottom: 8px;"><strong>顯示位置：</strong>整個 Home Assistant 界面的主色調，包括歡迎卡片背景、按鈕、連結等</p>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <input
+                type="color"
+                .value=${this._config.primary_color || '#03a9f4'}
+                @input=${(e) => this._updateConfig("primary_color", e.target.value)}
+                style="width: 60px; height: 40px; padding: 0; border: 1px solid var(--divider-color); border-radius: 8px; cursor: pointer;"
+              />
+              <input
+                type="text"
+                .value=${this._config.primary_color || '#03a9f4'}
+                @input=${(e) => this._updateConfig("primary_color", e.target.value)}
+                placeholder="#03a9f4"
+                style="flex: 1; max-width: 150px;"
+              />
+              ${this._config.primary_color ? html`
+                <button class="btn btn-secondary btn-small" @click=${() => this._updateConfig("primary_color", "")}>
+                  Reset
+                </button>
+              ` : ""}
+            </div>
           </div>
         </div>
 
