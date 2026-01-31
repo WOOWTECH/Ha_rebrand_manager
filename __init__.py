@@ -639,6 +639,11 @@ class RebrandAuthorizeView(HomeAssistantView):
 ha-authorize {{
   --primary-color: {primary_color} !important;
   --mdc-theme-primary: {primary_color} !important;
+  --mdc-theme-on-primary: #ffffff !important;
+}}
+mwc-button {{
+  --mdc-theme-primary: {primary_color} !important;
+  --mdc-theme-on-primary: #ffffff !important;
 }}
 </style>'''
             html_content = html_content.replace('</head>', color_style + '</head>')
