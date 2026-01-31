@@ -635,13 +635,18 @@ class RebrandAuthorizeView(HomeAssistantView):
   --primary-color: {primary_color} !important;
   --light-primary-color: {primary_color}40 !important;
   --dark-primary-color: {primary_color} !important;
+  --mdc-theme-primary: {primary_color} !important;
+  --button-color-fill-loud-active: {primary_color} !important;
+  --button-color-fill-loud-hover: {primary_color} !important;
+  --button-color-fill-normal-active: {primary_color} !important;
+  --button-color-fill-normal-hover: {primary_color} !important;
 }}
 ha-authorize, ha-auth-flow, ha-local-auth-flow, ha-pick-auth-provider {{
   --primary-color: {primary_color} !important;
   --mdc-theme-primary: {primary_color} !important;
   --mdc-theme-on-primary: #ffffff !important;
 }}
-mwc-button {{
+mwc-button, ha-button {{
   --mdc-theme-primary: {primary_color} !important;
   --mdc-theme-on-primary: #ffffff !important;
 }}
