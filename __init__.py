@@ -217,6 +217,9 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
         StaticPathConfig("/ha_rebrand", frontend_dest, cache_headers=False)
     ])
 
+    # Register the injector script to be loaded on every page
+    frontend.add_extra_js_url(hass, "/local/ha_rebrand/ha-rebrand-injector.js")
+
 
 @callback
 def _async_register_websocket_commands(hass: HomeAssistant) -> None:
