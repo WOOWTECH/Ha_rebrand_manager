@@ -221,14 +221,44 @@
     return true;
   }
 
+  // Cache for pre-compiled replacement patterns (performance optimization)
+  let compiledReplacements = null;
+
+  /**
+   * Escape special regex characters in a string
+   */
+  function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /**
+   * Compile replacement rules into regex patterns (called once)
+   */
+  function compileReplacements() {
+    if (!config?.replacements || Object.keys(config.replacements).length === 0) {
+      compiledReplacements = null;
+      return;
+    }
+    compiledReplacements = Object.entries(config.replacements).map(([search, replace]) => ({
+      pattern: new RegExp(escapeRegExp(search), 'g'),
+      replacement: replace
+    }));
+  }
+
   /**
    * Replace text throughout the page using replacements config
+   * Optimized: Uses pre-compiled regex and limits traversal scope
    */
   function replaceText() {
-    if (!config?.replacements || Object.keys(config.replacements).length === 0) return;
+    if (!compiledReplacements || compiledReplacements.length === 0) return;
+
+    // Limit traversal to main content area for better performance
+    const rootElement = document.querySelector('home-assistant-main') ||
+                       document.querySelector('ha-panel-lovelace') ||
+                       document.body;
 
     const walker = document.createTreeWalker(
-      document.body,
+      rootElement,
       NodeFilter.SHOW_TEXT,
       null,
       false
@@ -240,25 +270,29 @@
     while (node = walker.nextNode()) {
       const text = node.textContent;
       let newText = text;
+      let changed = false;
 
-      for (const [search, replace] of Object.entries(config.replacements)) {
-        if (newText.includes(search)) {
-          newText = newText.split(search).join(replace);
+      // Use pre-compiled regex for faster replacement
+      for (const { pattern, replacement } of compiledReplacements) {
+        const result = newText.replace(pattern, replacement);
+        if (result !== newText) {
+          newText = result;
+          changed = true;
         }
       }
 
-      if (newText !== text) {
+      if (changed) {
         nodesToUpdate.push({ node, newText });
       }
     }
 
-    // Apply updates
+    // Apply updates in batch
     nodesToUpdate.forEach(({ node, newText }) => {
       node.textContent = newText;
     });
 
-    // Also check shadow DOMs of custom elements
-    replaceShadowDOMText(document.body);
+    // Also check shadow DOMs of custom elements (with limited scope)
+    replaceShadowDOMText(rootElement);
   }
 
   /**
@@ -587,7 +621,7 @@
 
   /**
    * Set up mutation observer to handle dynamic content
-   * Uses targeted observation for better performance
+   * Uses targeted observation and filtering for better performance
    */
   function setupMutationObserver() {
     // Disconnect existing observer if any
@@ -598,11 +632,32 @@
     let debounceTimer = null;
 
     mainObserver = new MutationObserver((mutations) => {
-      // Debounce the rebrand application
+      // Filter: only process relevant mutations (performance optimization)
+      const hasRelevantChanges = mutations.some(mutation => {
+        // Only care about added nodes
+        if (mutation.type !== 'childList' || mutation.addedNodes.length === 0) {
+          return false;
+        }
+        // Check if any added node is HA-related
+        for (const node of mutation.addedNodes) {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const tagName = node.tagName?.toLowerCase() || '';
+            if (tagName.startsWith('ha-') || tagName.startsWith('hui-') ||
+                tagName === 'home-assistant-main' || tagName === 'ha-sidebar') {
+              return true;
+            }
+          }
+        }
+        return false;
+      });
+
+      if (!hasRelevantChanges) return;
+
+      // Debounce with longer interval (300ms) for better performance
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         applyRebrand();
-      }, 150);
+      }, 300);
     });
 
     // Try to observe only the main content area for better performance
@@ -610,33 +665,41 @@
     if (ha?.shadowRoot) {
       const haMain = ha.shadowRoot.querySelector('home-assistant-main');
       if (haMain) {
-        mainObserver.observe(haMain, { childList: true, subtree: true });
+        // Observe haMain without subtree for better performance
+        mainObserver.observe(haMain, { childList: true, subtree: false });
+        // Also observe haMain's shadowRoot if exists
+        if (haMain.shadowRoot) {
+          mainObserver.observe(haMain.shadowRoot, { childList: true, subtree: false });
+        }
       } else {
         // Fallback: observe home-assistant shadow root
-        mainObserver.observe(ha.shadowRoot, { childList: true, subtree: true });
+        mainObserver.observe(ha.shadowRoot, { childList: true, subtree: false });
       }
     } else {
-      // Fallback: observe body but with limited depth
-      mainObserver.observe(document.body, { childList: true, subtree: true });
+      // Fallback: observe body but without subtree
+      mainObserver.observe(document.body, { childList: true, subtree: false });
     }
 
     // Disconnect observer after timeout to prevent memory leaks
     setTimeout(() => {
       if (mainObserver) {
         mainObserver.disconnect();
+        mainObserver = null;
         console.log('[HA Rebrand] Observer disconnected after timeout');
       }
     }, OBSERVER_TIMEOUT);
 
-    // Also observe for route changes
-    window.addEventListener('location-changed', () => {
-      setTimeout(applyRebrand, 100);
-    });
-
-    // Handle popstate for browser navigation
-    window.addEventListener('popstate', () => {
-      setTimeout(applyRebrand, 100);
-    });
+    // Also observe for route changes (only add once)
+    if (!window._rebrandRouteListenerAdded) {
+      window._rebrandRouteListenerAdded = true;
+      window.addEventListener('location-changed', () => {
+        setTimeout(applyRebrand, 100);
+      });
+      // Handle popstate for browser navigation
+      window.addEventListener('popstate', () => {
+        setTimeout(applyRebrand, 100);
+      });
+    }
   }
 
   /**
@@ -659,6 +722,9 @@
 
     // Reset retry count on success
     configRetryCount = 0;
+
+    // Compile replacement patterns once for better performance
+    compileReplacements();
 
     // Wait for sidebar using event-based approach (replaces 30-second polling)
     await waitForSidebar();
