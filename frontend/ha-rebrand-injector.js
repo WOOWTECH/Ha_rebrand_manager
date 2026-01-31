@@ -292,6 +292,172 @@
         }
       });
     });
+
+    // Replace login page logo (ha-authorize)
+    replaceLoginLogo();
+
+    // Replace loading screen logo (ha-init-page)
+    replaceLoadingScreenLogo();
+  }
+
+  /**
+   * Replace logo on the login/authorize page
+   */
+  function replaceLoginLogo() {
+    if (!config?.logo) return;
+
+    // Find ha-authorize element
+    const haAuthorize = document.querySelector('ha-authorize');
+    if (!haAuthorize?.shadowRoot) return;
+
+    // Find the logo SVG or image in the shadow DOM
+    const shadowRoot = haAuthorize.shadowRoot;
+
+    // Look for the HA logo (typically an SVG in ha-icon-button or standalone)
+    const logoSelectors = [
+      'ha-icon-button[slot="navigationIcon"]',
+      '.logo',
+      'ha-svg-icon',
+      'svg',
+      'img[alt="Home Assistant"]',
+    ];
+
+    // Try to find and replace the logo container
+    let replaced = false;
+
+    // Method 1: Find the SVG logo directly
+    const svgLogos = shadowRoot.querySelectorAll('ha-svg-icon, svg');
+    svgLogos.forEach(svg => {
+      // Check if this looks like the HA logo (house shape)
+      if (svg.closest('.logo') || svg.getAttribute('viewBox')?.includes('24') || svg.parentElement?.classList.contains('logo')) {
+        if (!svg.classList.contains('ha-rebrand-hidden')) {
+          svg.classList.add('ha-rebrand-hidden');
+          svg.style.display = 'none';
+
+          // Create replacement image
+          const img = document.createElement('img');
+          img.src = config.logo;
+          img.alt = config.brand_name || 'Logo';
+          img.className = 'ha-rebrand-login-logo';
+          img.style.cssText = 'height: 80px; width: auto; max-width: 200px; object-fit: contain;';
+
+          // Support dark mode
+          if (config.logo_dark) {
+            const isDarkMode = document.documentElement.classList.contains('dark') ||
+                              document.body.classList.contains('dark') ||
+                              window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (isDarkMode) {
+              img.src = config.logo_dark;
+            }
+          }
+
+          svg.parentElement.insertBefore(img, svg);
+          replaced = true;
+        }
+      }
+    });
+
+    // Method 2: Look for the authorize page structure
+    if (!replaced) {
+      const authorizeContainer = shadowRoot.querySelector('.card-content, .content, .authorize');
+      if (authorizeContainer) {
+        // Find any existing logo image or icon
+        const existingLogo = authorizeContainer.querySelector('img, ha-svg-icon, svg');
+        if (existingLogo && !existingLogo.classList.contains('ha-rebrand-login-logo')) {
+          existingLogo.style.display = 'none';
+
+          const img = document.createElement('img');
+          img.src = config.logo;
+          img.alt = config.brand_name || 'Logo';
+          img.className = 'ha-rebrand-login-logo';
+          img.style.cssText = 'height: 80px; width: auto; max-width: 200px; object-fit: contain; display: block; margin: 0 auto 16px;';
+
+          if (config.logo_dark) {
+            const isDarkMode = document.documentElement.classList.contains('dark') ||
+                              document.body.classList.contains('dark') ||
+                              window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (isDarkMode) {
+              img.src = config.logo_dark;
+            }
+          }
+
+          existingLogo.parentElement.insertBefore(img, existingLogo);
+        }
+      }
+    }
+  }
+
+  /**
+   * Replace logo on the loading screen (ha-init-page)
+   */
+  function replaceLoadingScreenLogo() {
+    if (!config?.logo) return;
+
+    // Find ha-init-page element (loading screen)
+    const haInitPage = document.querySelector('ha-init-page');
+    if (!haInitPage?.shadowRoot) return;
+
+    const shadowRoot = haInitPage.shadowRoot;
+
+    // Find the main logo - look for ha-svg-icon first, then large SVGs
+    // The main logo is typically a ha-svg-icon with the HA house icon
+    const haSvgIcon = shadowRoot.querySelector('ha-svg-icon');
+    if (haSvgIcon && !haSvgIcon.classList.contains('ha-rebrand-hidden')) {
+      haSvgIcon.classList.add('ha-rebrand-hidden');
+      haSvgIcon.style.display = 'none';
+
+      // Create replacement image
+      const img = document.createElement('img');
+      img.src = config.logo;
+      img.alt = config.brand_name || 'Logo';
+      img.className = 'ha-rebrand-loading-logo';
+      img.style.cssText = 'height: 120px; width: auto; max-width: 240px; object-fit: contain;';
+
+      // Support dark mode
+      if (config.logo_dark) {
+        const isDarkMode = document.documentElement.classList.contains('dark') ||
+                          document.body.classList.contains('dark') ||
+                          window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (isDarkMode) {
+          img.src = config.logo_dark;
+        }
+      }
+
+      haSvgIcon.parentElement.insertBefore(img, haSvgIcon);
+    }
+
+    // Hide the Open Home Foundation footer if configured
+    if (config.hide_open_home_foundation !== false) {
+      // Method 1: Find links to openhomefoundation
+      const footerLinks = shadowRoot.querySelectorAll('a[href*="openhomefoundation"], a[href*="home-assistant"]');
+      footerLinks.forEach(link => {
+        if (!link.classList.contains('ha-rebrand-hidden')) {
+          link.classList.add('ha-rebrand-hidden');
+          link.style.display = 'none';
+        }
+      });
+
+      // Method 2: Find elements with "Open Home Foundation" or "HOME ASSISTANT" text
+      const allElements = shadowRoot.querySelectorAll('*');
+      allElements.forEach(el => {
+        const text = el.textContent || '';
+        if ((text.includes('Open Home Foundation') || text.includes('HOME ASSISTANT') || text.includes('OPEN HOME FOUNDATION'))
+            && !el.classList.contains('ha-rebrand-hidden')) {
+          // Check if this element or its parent contains only this text (no important children)
+          if (el.children.length === 0 || el.tagName === 'A') {
+            el.classList.add('ha-rebrand-hidden');
+            el.style.display = 'none';
+          } else {
+            // Try to find and hide the specific text container
+            const parent = el.closest('a, div[class*="footer"], div[class*="bottom"], span');
+            if (parent && parent !== shadowRoot.host && !parent.classList.contains('ha-rebrand-hidden')) {
+              parent.classList.add('ha-rebrand-hidden');
+              parent.style.display = 'none';
+            }
+          }
+        }
+      });
+    }
   }
 
   /**

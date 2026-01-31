@@ -10,6 +10,7 @@ CONF_FAVICON = "favicon"
 CONF_REPLACEMENTS = "replacements"
 CONF_SIDEBAR_TITLE = "sidebar_title"
 CONF_DOCUMENT_TITLE = "document_title"
+CONF_HIDE_OPEN_HOME_FOUNDATION = "hide_open_home_foundation"
 
 # Default values
 DEFAULT_BRAND_NAME = "Home Assistant"

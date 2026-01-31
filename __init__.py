@@ -26,6 +26,7 @@ from .const import (
     CONF_REPLACEMENTS,
     CONF_SIDEBAR_TITLE,
     CONF_DOCUMENT_TITLE,
+    CONF_HIDE_OPEN_HOME_FOUNDATION,
     DEFAULT_BRAND_NAME,
     DEFAULT_REPLACEMENTS,
     MAX_FILE_SIZE,
@@ -98,6 +99,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) ->
         CONF_SIDEBAR_TITLE: config.get(CONF_SIDEBAR_TITLE, config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)),
         CONF_DOCUMENT_TITLE: config.get(CONF_DOCUMENT_TITLE, config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)),
         CONF_REPLACEMENTS: config.get(CONF_REPLACEMENTS, DEFAULT_REPLACEMENTS),
+        CONF_HIDE_OPEN_HOME_FOUNDATION: config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
         "uploads_dir": uploads_dir,
     }
 
@@ -182,6 +184,7 @@ async def _async_write_config_json(hass: HomeAssistant) -> None:
         "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
         "document_title": config.get(CONF_DOCUMENT_TITLE),
         "replacements": config.get(CONF_REPLACEMENTS, {}),
+        "hide_open_home_foundation": config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
     }
     uploads_dir = config.get("uploads_dir", hass.config.path("www", "ha_rebrand"))
     config_json_path = os.path.join(uploads_dir, "config.json")
@@ -239,6 +242,7 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
             "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
             "document_title": config.get(CONF_DOCUMENT_TITLE),
             "replacements": config.get(CONF_REPLACEMENTS, {}),
+            "hide_open_home_foundation": config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
         })
 
     @websocket_api.websocket_command({
@@ -250,6 +254,7 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
         vol.Optional("sidebar_title"): cv.string,
         vol.Optional("document_title"): cv.string,
         vol.Optional("replacements"): vol.Schema({cv.string: cv.string}),
+        vol.Optional("hide_open_home_foundation"): cv.boolean,
     })
     @websocket_api.require_admin
     @websocket_api.async_response
@@ -275,6 +280,8 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
             config[CONF_DOCUMENT_TITLE] = msg["document_title"]
         if "replacements" in msg:
             config[CONF_REPLACEMENTS] = msg["replacements"]
+        if "hide_open_home_foundation" in msg:
+            config[CONF_HIDE_OPEN_HOME_FOUNDATION] = msg["hide_open_home_foundation"]
 
         hass.data[DOMAIN] = config
 
@@ -309,6 +316,7 @@ class RebrandConfigView(HomeAssistantView):
             "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
             "document_title": config.get(CONF_DOCUMENT_TITLE),
             "replacements": config.get(CONF_REPLACEMENTS, {}),
+            "hide_open_home_foundation": config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
         })
 
 
