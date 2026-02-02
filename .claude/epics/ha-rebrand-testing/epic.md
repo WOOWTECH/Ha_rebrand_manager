@@ -2,6 +2,7 @@
 name: ha-rebrand-testing
 status: backlog
 created: 2026-02-02T09:55:59Z
+updated: 2026-02-02T10:04:11Z
 progress: 0%
 prd: .claude/prds/ha-rebrand-testing.md
 github: [Will be updated when synced to GitHub]
@@ -102,3 +103,21 @@ Implement a complete testing infrastructure for the HA Rebrand custom component 
 | Flaky E2E tests | Add retry logic, explicit waits, screenshot on failure |
 | HA version changes | Pin test HA version, use stable APIs |
 | CI environment differences | Use Docker-based HA for consistent testing |
+
+## Tasks Created
+
+- [ ] 001.md - Project Setup (parallel: false)
+- [ ] 002.md - Static Analysis Configuration (parallel: true, depends: 001)
+- [ ] 003.md - Unit Test Fixtures (parallel: false, depends: 001)
+- [ ] 004.md - Security Unit Tests (parallel: true, depends: 003)
+- [ ] 005.md - Component Unit Tests (parallel: true, depends: 003)
+- [ ] 006.md - E2E Infrastructure (parallel: false, depends: 001)
+- [ ] 007.md - E2E Login and Admin Panel Tests (parallel: true, depends: 006)
+- [ ] 008.md - E2E Sidebar and Text Replacement Tests (parallel: true, depends: 006)
+- [ ] 009.md - CI Workflow (parallel: false, depends: 002,004,005,007,008)
+
+**Summary:**
+- Total tasks: 9
+- Parallel tasks: 5 (002, 004, 005, 007, 008)
+- Sequential tasks: 4 (001, 003, 006, 009)
+- Estimated total effort: ~25-30 hours
