@@ -1,0 +1,1 @@
+"""HA Rebrand tests package."""
