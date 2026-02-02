@@ -295,11 +295,26 @@
     replaceShadowDOMText(rootElement);
   }
 
+  // Maximum depth for shadow DOM traversal to prevent stack overflow
+  const MAX_SHADOW_DOM_DEPTH = 10;
+
   /**
    * Recursively replace text in shadow DOMs
+   * IMPORTANT: Must exit early if no replacements to prevent infinite DOM traversal
+   * @param {ShadowRoot|Element} root - The root element to start traversal from
+   * @param {number} depth - Current recursion depth (defaults to 0)
    */
-  function replaceShadowDOMText(root) {
-    if (!config?.replacements) return;
+  function replaceShadowDOMText(root, depth = 0) {
+    // Exit early if no replacements or empty replacements object
+    // This prevents expensive DOM traversal when there's nothing to replace
+    if (!config?.replacements || Object.keys(config.replacements).length === 0) return;
+    if (!compiledReplacements || compiledReplacements.length === 0) return;
+
+    // Prevent infinite recursion / stack overflow with deep shadow DOM nesting
+    if (depth >= MAX_SHADOW_DOM_DEPTH) {
+      console.warn('[HA Rebrand] Max shadow DOM depth reached, stopping traversal');
+      return;
+    }
 
     const elements = root.querySelectorAll('*');
     elements.forEach(el => {
@@ -312,24 +327,33 @@
         );
 
         let node;
+        const nodesToUpdate = [];
         while (node = walker.nextNode()) {
           let text = node.textContent;
+          let newText = text;
           let changed = false;
 
-          for (const [search, replace] of Object.entries(config.replacements)) {
-            if (text.includes(search)) {
-              text = text.split(search).join(replace);
+          // Use pre-compiled regex for faster replacement (consistent with replaceText())
+          for (const { pattern, replacement } of compiledReplacements) {
+            const result = newText.replace(pattern, replacement);
+            if (result !== newText) {
+              newText = result;
               changed = true;
             }
           }
 
           if (changed) {
-            node.textContent = text;
+            nodesToUpdate.push({ node, newText });
           }
         }
 
-        // Recurse into shadow DOM
-        replaceShadowDOMText(el.shadowRoot);
+        // Apply updates in batch (avoids DOM mutation during traversal)
+        nodesToUpdate.forEach(({ node, newText }) => {
+          node.textContent = newText;
+        });
+
+        // Recurse into shadow DOM with incremented depth
+        replaceShadowDOMText(el.shadowRoot, depth + 1);
       }
     });
   }
@@ -559,6 +583,7 @@
 
   /**
    * Apply all rebrand changes
+   * Note: Each function has its own early-exit checks for missing config values
    */
   function applyRebrand() {
     if (!config) return false;
@@ -567,6 +592,8 @@
     replaceDocumentTitle();
     const sidebarReplaced = replaceSidebar();
     replaceLogos();
+    // replaceText() and replaceShadowDOMText() now have proper early-exit checks
+    // to prevent expensive DOM traversal when no replacements are configured
     replaceText();
     applyPrimaryColor();
 
