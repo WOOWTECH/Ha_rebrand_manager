@@ -1,0 +1,138 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ha-rebrand"
+version = "2.1.0"
+description = "Home Assistant custom component for rebranding the UI"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+authors = [
+    { name = "WOOWTECH" }
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: Home Assistant",
+]
+
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.0.0",
+    "pytest-homeassistant-custom-component>=0.13.0",
+    # Static Analysis
+    "ruff>=0.3.0",
+    "mypy>=1.8.0",
+    # E2E Testing
+    "playwright>=1.40.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/WOOWTECH/Ha_rebrand_manager"
+Repository = "https://github.com/WOOWTECH/Ha_rebrand_manager"
+Issues = "https://github.com/WOOWTECH/Ha_rebrand_manager/issues"
+
+# =============================================================================
+# Ruff Configuration
+# =============================================================================
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "W",      # pycodestyle warnings
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "ANN",    # flake8-annotations
+    "ASYNC",  # flake8-async
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "RUF",    # ruff-specific rules
+]
+ignore = [
+    "ANN101",  # Missing type annotation for `self`
+    "ANN102",  # Missing type annotation for `cls`
+    "ANN401",  # Dynamically typed expressions (typing.Any)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN", "S101"]  # Relax annotations and allow assert in tests
+"ha_rebrand/__init__.py" = ["E501"]  # Allow long lines in main init
+
+[tool.ruff.lint.isort]
+known-first-party = ["ha_rebrand"]
+
+# =============================================================================
+# Mypy Configuration
+# =============================================================================
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+check_untyped_defs = true
+disallow_untyped_defs = false  # Gradual typing
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+# =============================================================================
+# Pytest Configuration
+# =============================================================================
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+]
+markers = [
+    "e2e: End-to-end tests requiring Home Assistant instance",
+    "slow: Tests that take longer to run",
+]
+
+# =============================================================================
+# Coverage Configuration
+# =============================================================================
+[tool.coverage.run]
+source = ["ha_rebrand"]
+branch = true
+omit = [
+    "tests/*",
+    "ha_rebrand/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+fail_under = 80
+show_missing = true
+
+# =============================================================================
+# Hatch Build Configuration
+# =============================================================================
+[tool.hatch.build.targets.wheel]
+packages = ["ha_rebrand"]
