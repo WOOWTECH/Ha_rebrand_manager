@@ -6,11 +6,12 @@ A Home Assistant custom component that allows you to customize the branding of y
 
 ## Features
 
-- Replace Home Assistant logo with your own
+- Replace Home Assistant logo with your own (sidebar, loading screen, login page)
 - Custom favicon
 - Custom sidebar title
 - Custom document (browser tab) title
 - **Primary color customization** (login page buttons, UI accents)
+- **Hide Open Home Foundation logo**
 - Text replacement mapping (e.g., "Home Assistant" → "My Smart Home")
 - Dark mode logo support
 - Admin panel with drag-and-drop file upload
@@ -32,6 +33,7 @@ A Home Assistant custom component that allows you to customize the branding of y
 
 1. Copy the `ha_rebrand` folder to your `custom_components` directory
 2. Restart Home Assistant
+3. Go to Settings → Devices & Services → Add Integration → Search "HA Rebrand"
 
 ## Configuration
 
@@ -42,6 +44,7 @@ A Home Assistant custom component that allows you to customize the branding of y
    - Upload your logo and favicon
    - Set your brand name and titles
    - Set your primary color (affects buttons and UI accents)
+   - Toggle "Hide Open Home Foundation" option
    - Add text replacements
 3. Click "Apply Changes" to test your configuration
 4. Click "Save to File" to create a permanent configuration
@@ -59,24 +62,13 @@ ha_rebrand:
   sidebar_title: "My Smart Home"
   document_title: "My Smart Home"
   primary_color: "#6183fc"  # Optional: Custom primary color
+  hide_open_home_foundation: true  # Optional: Hide OHF logo
   replacements:
     "Home Assistant": "My Smart Home"
     "HA": "MSH"
 ```
 
-### Enable the Injector Script
-
-To enable automatic branding replacement throughout the interface, add the injector script to your Lovelace configuration.
-
-Add this to your `configuration.yaml`:
-
-```yaml
-frontend:
-  extra_module_url:
-    - /local/ha_rebrand/ha-rebrand-injector.js
-```
-
-Then restart Home Assistant.
+**Note:** The injector script is automatically loaded - no manual `frontend.extra_module_url` configuration is needed.
 
 ## Configuration Options
 
@@ -89,6 +81,7 @@ Then restart Home Assistant.
 | `sidebar_title` | string | brand_name | Title shown in sidebar |
 | `document_title` | string | brand_name | Browser tab title |
 | `primary_color` | string | null | Primary color for buttons and UI (hex format: `#RRGGBB`) |
+| `hide_open_home_foundation` | bool | true | Hide the Open Home Foundation logo |
 | `replacements` | dict | {} | Text replacement mapping |
 
 ## File Paths
@@ -110,11 +103,13 @@ Supported image formats:
 
 1. **Backend Component**: Manages configuration, file uploads, and provides WebSocket/HTTP APIs
 2. **Admin Panel**: Provides a user-friendly interface to configure branding
-3. **Injector Script**: Runs on every page load and:
+3. **Loading Screen**: Patches Home Assistant's IndexView to show custom logo immediately on page load
+4. **Login Page**: Custom authorize view replaces the login page logo and applies primary color
+5. **Injector Script**: Runs on every page load and:
    - Replaces the favicon
    - Updates the document title
    - Replaces the sidebar logo and title
-   - Applies primary color to login page and UI elements
+   - Applies primary color to UI elements
    - Performs text replacements throughout the DOM
    - Monitors for dynamic content changes with optimized MutationObserver
 
@@ -124,6 +119,7 @@ This component includes security measures to prevent XSS and CSS injection attac
 - All user-provided values are properly escaped before HTML/JavaScript injection
 - Color values are validated against a strict regex pattern
 - JavaScript strings are escaped to prevent script injection
+- File uploads are validated for type, extension, and size (max 5MB)
 
 ## Troubleshooting
 
@@ -135,9 +131,8 @@ This component includes security measures to prevent XSS and CSS injection attac
 
 ### Text replacements not working
 
-1. Ensure the injector script is loaded (check `frontend.extra_module_url`)
-2. Restart Home Assistant after configuration changes
-3. Hard refresh your browser (Ctrl+Shift+R)
+1. Restart Home Assistant after configuration changes
+2. Hard refresh your browser (Ctrl+Shift+R)
 
 ### Primary color not applying
 
@@ -159,6 +154,20 @@ This component includes security measures to prevent XSS and CSS injection attac
 - Primary color only supports hex format (`#RGB`, `#RRGGBB`, or `#RRGGBBAA`)
 
 ## Version History
+
+### 2.1.0
+- Automatic injector script loading (no manual frontend configuration needed)
+- Loading screen logo replacement (patches IndexView)
+- Custom login/authorize page with branding
+- Hide Open Home Foundation option
+- Improved security validations
+
+### 2.0.0
+- Added Config Flow for UI-based setup
+- Added dark/light mode logo support
+- Added Traditional Chinese translations
+- Fixed sidebar logo injection issues
+- Improved error handling
 
 ### 1.1.0
 - Added primary color customization for login page and UI
@@ -190,11 +199,12 @@ HA Rebrand 是一個 Home Assistant 自定義組件，讓您可以自定義 Home
 
 ## 功能特色
 
-- 替換 Home Assistant 標誌為您自己的標誌
+- 替換 Home Assistant 標誌為您自己的標誌（側邊欄、載入畫面、登入頁面）
 - 自定義網站圖標 (favicon)
 - 自定義側邊欄標題
 - 自定義瀏覽器標籤標題
 - **主題色自定義**（登入頁面按鈕、UI 強調色）
+- **隱藏 Open Home Foundation 標誌**
 - 文字替換對應（例如："Home Assistant" → "我的智慧家庭"）
 - 深色模式標誌支援
 - 管理面板，支援拖放上傳檔案
@@ -216,6 +226,7 @@ HA Rebrand 是一個 Home Assistant 自定義組件，讓您可以自定義 Home
 
 1. 將 `ha_rebrand` 資料夾複製到您的 `custom_components` 目錄
 2. 重新啟動 Home Assistant
+3. 前往 設定 → 裝置與服務 → 新增整合 → 搜尋 "HA Rebrand"
 
 ## 配置方式
 
@@ -226,6 +237,7 @@ HA Rebrand 是一個 Home Assistant 自定義組件，讓您可以自定義 Home
    - 上傳您的標誌和網站圖標
    - 設定品牌名稱和標題
    - 設定主題色（影響按鈕和 UI 強調色）
+   - 切換「隱藏 Open Home Foundation」選項
    - 添加文字替換規則
 3. 點擊「套用變更」測試配置
 4. 點擊「儲存到檔案」建立永久配置
@@ -243,24 +255,13 @@ ha_rebrand:
   sidebar_title: "我的智慧家庭"
   document_title: "我的智慧家庭"
   primary_color: "#6183fc"  # 可選：自定義主題色
+  hide_open_home_foundation: true  # 可選：隱藏 OHF 標誌
   replacements:
     "Home Assistant": "我的智慧家庭"
     "儀表板": "控制台"
 ```
 
-### 啟用注入腳本
-
-要在整個介面中啟用自動品牌替換，需將注入腳本添加到 Lovelace 配置中。
-
-在 `configuration.yaml` 中添加：
-
-```yaml
-frontend:
-  extra_module_url:
-    - /local/ha_rebrand/ha-rebrand-injector.js
-```
-
-然後重新啟動 Home Assistant。
+**注意：** 注入腳本會自動載入，無需手動配置 `frontend.extra_module_url`。
 
 ## 配置選項
 
@@ -273,6 +274,7 @@ frontend:
 | `sidebar_title` | 字串 | brand_name | 側邊欄顯示的標題 |
 | `document_title` | 字串 | brand_name | 瀏覽器標籤標題 |
 | `primary_color` | 字串 | null | 按鈕和 UI 的主題色（十六進制格式：`#RRGGBB`） |
+| `hide_open_home_foundation` | 布林 | true | 隱藏 Open Home Foundation 標誌 |
 | `replacements` | 字典 | {} | 文字替換對應表 |
 
 ## 檔案路徑
@@ -294,11 +296,13 @@ frontend:
 
 1. **後端組件**：管理配置、檔案上傳，並提供 WebSocket/HTTP API
 2. **管理面板**：提供使用者友善的介面來配置品牌
-3. **注入腳本**：在每次頁面載入時運行：
+3. **載入畫面**：修補 Home Assistant 的 IndexView，在頁面載入時立即顯示自定義標誌
+4. **登入頁面**：自定義授權視圖替換登入頁面標誌並套用主題色
+5. **注入腳本**：在每次頁面載入時運行：
    - 替換網站圖標
    - 更新文件標題
    - 替換側邊欄標誌和標題
-   - 將主題色應用到登入頁面和 UI 元素
+   - 將主題色應用到 UI 元素
    - 在整個 DOM 中執行文字替換
    - 使用優化的 MutationObserver 監控動態內容變更
 
@@ -308,6 +312,7 @@ frontend:
 - 所有使用者提供的值在 HTML/JavaScript 注入前都會被正確轉義
 - 顏色值會根據嚴格的正則表達式模式進行驗證
 - JavaScript 字串會被轉義以防止腳本注入
+- 檔案上傳會驗證類型、副檔名和大小（最大 5MB）
 
 ## 疑難排解
 
@@ -319,9 +324,8 @@ frontend:
 
 ### 文字替換不起作用
 
-1. 確保注入腳本已載入（檢查 `frontend.extra_module_url`）
-2. 配置變更後重新啟動 Home Assistant
-3. 強制重新整理瀏覽器（Ctrl+Shift+R）
+1. 配置變更後重新啟動 Home Assistant
+2. 強制重新整理瀏覽器（Ctrl+Shift+R）
 
 ### 主題色未套用
 
@@ -343,6 +347,20 @@ frontend:
 - 主題色僅支援十六進制格式（`#RGB`、`#RRGGBB` 或 `#RRGGBBAA`）
 
 ## 版本歷史
+
+### 2.1.0
+- 自動載入注入腳本（無需手動配置 frontend）
+- 載入畫面標誌替換（修補 IndexView）
+- 自定義登入/授權頁面品牌
+- 隱藏 Open Home Foundation 選項
+- 改進安全性驗證
+
+### 2.0.0
+- 新增 Config Flow 支援 UI 設定
+- 新增深色/淺色模式支援
+- 新增繁體中文翻譯
+- 修復側邊欄標誌注入問題
+- 改進錯誤處理
 
 ### 1.1.0
 - 新增登入頁面和 UI 的主題色自定義功能

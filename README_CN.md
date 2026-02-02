@@ -4,13 +4,17 @@
 
 ## 功能特性
 
-- 用自訂 Logo 替換 Home Assistant 預設標誌
+- 用自訂 Logo 替換 Home Assistant 預設標誌（側邊欄、載入畫面、登入頁面）
 - 自訂網站圖示 (Favicon)
 - 自訂側邊欄標題
 - 自訂瀏覽器標籤頁標題
+- **主題色自訂**（登入頁面按鈕、UI 強調色）
+- **隱藏 Open Home Foundation 標誌**
 - 文字替換對應（例如：「Home Assistant」→「我的智慧家居」）
 - 深色模式 Logo 支援
 - 管理面板支援拖放上傳檔案
+- **安全加固**（防止 XSS 和 CSS 注入攻擊）
+- **效能優化**（預編譯正規表示式、智慧 MutationObserver）
 
 ## 安裝方法
 
@@ -25,8 +29,9 @@
 
 ### 手動安裝
 
-1. 將本儲存庫複製到您的 `custom_components/ha_rebrand` 目錄
+1. 將 `ha_rebrand` 資料夾複製到您的 `custom_components` 目錄
 2. 重新啟動 Home Assistant
+3. 前往 設定 → 裝置與服務 → 新增整合 → 搜尋 "HA Rebrand"
 
 ## 設定方法
 
@@ -36,6 +41,8 @@
 2. 使用介面設定您的品牌：
    - 上傳您的 Logo 和網站圖示
    - 設定品牌名稱和標題
+   - 設定主題色（影響按鈕和 UI 強調色）
+   - 切換「隱藏 Open Home Foundation」選項
    - 新增文字替換規則
 3. 點擊「套用變更」測試設定
 4. 點擊「儲存到檔案」建立永久設定
@@ -52,24 +59,14 @@ ha_rebrand:
   favicon: "/local/favicon.ico"
   sidebar_title: "我的智慧家居"
   document_title: "我的智慧家居"
+  primary_color: "#6183fc"  # 可選：自訂主題色
+  hide_open_home_foundation: true  # 可選：隱藏 OHF 標誌
   replacements:
     "Home Assistant": "我的智慧家居"
     "HA": "智家"
 ```
 
-### 啟用注入腳本
-
-要在整個介面啟用自動品牌替換，需要將注入腳本新增到 Lovelace 設定中。
-
-在 `configuration.yaml` 中新增：
-
-```yaml
-frontend:
-  extra_module_url:
-    - /local/ha_rebrand/ha-rebrand-injector.js
-```
-
-然後重新啟動 Home Assistant。
+**注意：** 注入腳本會自動載入，無需手動設定 `frontend.extra_module_url`。
 
 ## 設定選項
 
@@ -81,6 +78,8 @@ frontend:
 | `favicon` | 字串 | null | 網站圖示路徑 |
 | `sidebar_title` | 字串 | brand_name | 側邊欄顯示的標題 |
 | `document_title` | 字串 | brand_name | 瀏覽器標籤頁標題 |
+| `primary_color` | 字串 | null | 按鈕和 UI 的主題色（十六進位格式：`#RRGGBB`） |
+| `hide_open_home_foundation` | 布林 | true | 隱藏 Open Home Foundation 標誌 |
 | `replacements` | 字典 | {} | 文字替換對應 |
 
 ## 檔案路徑說明
@@ -105,21 +104,34 @@ frontend:
 | `brand_name` | 設定頁面標題、關於頁面、系統資訊 |
 | `sidebar_title` | 側邊欄頂部標題區域 |
 | `document_title` | 瀏覽器標籤頁標題（例如：「總覽 – 品牌名稱」） |
-| `logo` | 側邊欄頂部 Logo 區域 |
-| `logo_dark` | 深色模式下的側邊欄 Logo |
+| `logo` | 側邊欄頂部 Logo 區域、載入畫面、登入頁面 |
+| `logo_dark` | 深色模式下的 Logo |
 | `favicon` | 瀏覽器標籤頁圖示 |
+| `primary_color` | 登入頁面按鈕、UI 強調色 |
+| `hide_open_home_foundation` | 隱藏 OHF 標誌 |
 | `replacements` | 整個介面中符合的文字 |
 
 ## 運作原理
 
 1. **後端組件**：管理設定、檔案上傳，並提供 WebSocket/HTTP API
 2. **管理面板**：提供使用者友善的介面來設定品牌
-3. **注入腳本**：在每次頁面載入時執行，執行以下操作：
+3. **載入畫面**：修補 Home Assistant 的 IndexView，在頁面載入時立即顯示自訂 Logo
+4. **登入頁面**：自訂授權視圖替換登入頁面 Logo 並套用主題色
+5. **注入腳本**：在每次頁面載入時執行：
    - 替換網站圖示
    - 更新文件標題
    - 替換側邊欄 Logo 和標題
+   - 將主題色套用到 UI 元素
    - 在整個 DOM 中執行文字替換
-   - 監控動態內容變化
+   - 使用優化的 MutationObserver 監控動態內容變化
+
+## 安全性
+
+此組件包含安全措施以防止 XSS 和 CSS 注入攻擊：
+- 所有使用者提供的值在 HTML/JavaScript 注入前都會被正確跳脫
+- 顏色值會根據嚴格的正規表示式模式進行驗證
+- JavaScript 字串會被跳脫以防止腳本注入
+- 檔案上傳會驗證類型、副檔名和大小（最大 5MB）
 
 ## 常見問題排解
 
@@ -131,9 +143,14 @@ frontend:
 
 ### 文字替換不生效
 
-1. 確保注入腳本已載入（檢查 `frontend.extra_module_url`）
-2. 設定變更後重新啟動 Home Assistant
-3. 強制重新整理瀏覽器（Ctrl+Shift+R）
+1. 設定變更後重新啟動 Home Assistant
+2. 強制重新整理瀏覽器（Ctrl+Shift+R）
+
+### 主題色未套用
+
+1. 僅使用十六進位顏色格式（例如：`#6183fc`）
+2. 在無痕/私密瀏覽視窗中測試以避免快取問題
+3. 主題色會影響登入頁面按鈕和主要 UI 強調色
 
 ### 管理面板不顯示
 
@@ -146,8 +163,16 @@ frontend:
 - HA 核心 UI 中某些深層巢狀的元素可能無法被替換
 - 文字替換僅作用於可見文字，不影響元素屬性
 - 設定變更需要重新整理頁面才能生效
+- 主題色僅支援十六進位格式（`#RGB`、`#RRGGBB` 或 `#RRGGBBAA`）
 
 ## 版本歷史
+
+### 2.1.0
+- 自動載入注入腳本（無需手動設定 frontend）
+- 載入畫面 Logo 替換（修補 IndexView）
+- 自訂登入/授權頁面品牌
+- 隱藏 Open Home Foundation 選項
+- 改進安全性驗證
 
 ### 2.0.0
 - 新增 Config Flow 支援 UI 設定
@@ -155,6 +180,13 @@ frontend:
 - 新增繁體中文翻譯
 - 修復側邊欄 Logo 注入問題
 - 改進錯誤處理
+
+### 1.1.0
+- 新增登入頁面和 UI 的主題色自訂功能
+- 安全性改進：防止 XSS 和 CSS 注入
+- 效能優化：預編譯正規表示式模式
+- 優化 MutationObserver，增加變更過濾和防抖動
+- 改進程式碼品質和日誌記錄
 
 ### 1.0.0
 - 初始版本
