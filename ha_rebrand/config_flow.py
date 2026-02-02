@@ -1,4 +1,5 @@
 """Config flow for HA Rebrand integration."""
+
 from __future__ import annotations
 
 import logging
@@ -11,7 +12,7 @@ from .const import DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 
-class HaRebrandConfigFlow(ConfigFlow, domain=DOMAIN):
+class HaRebrandConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     """Handle a config flow for HA Rebrand."""
 
     VERSION = 1

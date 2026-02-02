@@ -1,4 +1,5 @@
 """HA Rebrand - Custom branding for Home Assistant."""
+
 from __future__ import annotations
 
 import json
@@ -8,12 +9,11 @@ import re
 import shutil
 from functools import partial
 from html import escape as html_escape
+from pathlib import Path
 from typing import Any
 
 import voluptuous as vol
 from aiohttp import web
-from pathlib import Path
-
 from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import HomeAssistantView, StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
@@ -22,25 +22,25 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
-    DOMAIN,
+    ALLOWED_EXTENSIONS,
+    ALLOWED_FILE_TYPES,
     CONF_BRAND_NAME,
+    CONF_DOCUMENT_TITLE,
+    CONF_FAVICON,
+    CONF_HIDE_OPEN_HOME_FOUNDATION,
     CONF_LOGO,
     CONF_LOGO_DARK,
-    CONF_FAVICON,
+    CONF_PRIMARY_COLOR,
     CONF_REPLACEMENTS,
     CONF_SIDEBAR_TITLE,
-    CONF_DOCUMENT_TITLE,
-    CONF_HIDE_OPEN_HOME_FOUNDATION,
-    CONF_PRIMARY_COLOR,
     DEFAULT_BRAND_NAME,
     DEFAULT_REPLACEMENTS,
+    DOMAIN,
     MAX_FILE_SIZE,
-    ALLOWED_FILE_TYPES,
-    ALLOWED_EXTENSIONS,
-    PANEL_URL_PATH,
     PANEL_COMPONENT_NAME,
-    PANEL_TITLE,
     PANEL_ICON,
+    PANEL_TITLE,
+    PANEL_URL_PATH,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,20 +49,22 @@ _LOGGER = logging.getLogger(__name__)
 _SVG_PATTERN = re.compile(r'<svg[^>]*viewBox="0 0 240 240"[^>]*>.*?</svg>', re.DOTALL)
 
 # Color validation pattern
-_COLOR_PATTERN = re.compile(r'^#[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3})?(?:[0-9A-Fa-f]{2})?$')
+_COLOR_PATTERN = re.compile(r"^#[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3})?(?:[0-9A-Fa-f]{2})?$")
 
 
 def _escape_js_string(s: str) -> str:
     """Escape string for safe JavaScript embedding, preventing XSS."""
     if not s:
         return ""
-    return (s.replace('\\', '\\\\')
-             .replace('"', '\\"')
-             .replace("'", "\\'")
-             .replace('\n', '\\n')
-             .replace('\r', '\\r')
-             .replace('<', '\\x3c')
-             .replace('>', '\\x3e'))
+    return (
+        s.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("'", "\\'")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("<", "\\x3c")
+        .replace(">", "\\x3e")
+    )
 
 
 def _validate_color(color: str) -> str:
@@ -74,6 +76,7 @@ def _validate_color(color: str) -> str:
         return color
     _LOGGER.warning(f"Invalid color format rejected: {color}")
     return ""
+
 
 type HaRebrandConfigEntry = ConfigEntry
 
@@ -131,10 +134,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) ->
         CONF_LOGO: config.get(CONF_LOGO),
         CONF_LOGO_DARK: config.get(CONF_LOGO_DARK),
         CONF_FAVICON: config.get(CONF_FAVICON),
-        CONF_SIDEBAR_TITLE: config.get(CONF_SIDEBAR_TITLE, config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)),
-        CONF_DOCUMENT_TITLE: config.get(CONF_DOCUMENT_TITLE, config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)),
+        CONF_SIDEBAR_TITLE: config.get(
+            CONF_SIDEBAR_TITLE, config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)
+        ),
+        CONF_DOCUMENT_TITLE: config.get(
+            CONF_DOCUMENT_TITLE, config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)
+        ),
         CONF_REPLACEMENTS: config.get(CONF_REPLACEMENTS, DEFAULT_REPLACEMENTS),
-        CONF_HIDE_OPEN_HOME_FOUNDATION: config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
+        CONF_HIDE_OPEN_HOME_FOUNDATION: config.get(
+            CONF_HIDE_OPEN_HOME_FOUNDATION, True
+        ),
         CONF_PRIMARY_COLOR: config.get(CONF_PRIMARY_COLOR),
         "uploads_dir": uploads_dir,
     }
@@ -199,12 +208,13 @@ def _create_directory(path: str) -> None:
         os.makedirs(path, exist_ok=True)
 
 
-def _load_config_json(path: str) -> dict:
+def _load_config_json(path: str) -> dict[str, Any]:
     """Load config from JSON file."""
     if os.path.exists(path):
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
+            with open(path, encoding="utf-8") as f:
+                result: dict[str, Any] = json.load(f)
+                return result
         except Exception:
             pass
     return {}
@@ -257,9 +267,9 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
     await hass.async_add_executor_job(_copy_frontend_files, frontend_src, frontend_dest)
 
     # Register the rebrand static path using new API
-    await hass.http.async_register_static_paths([
-        StaticPathConfig("/ha_rebrand", frontend_dest, cache_headers=False)
-    ])
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig("/ha_rebrand", frontend_dest, cache_headers=False)]
+    )
 
     # Register the injector script to be loaded on every page (for post-auth pages)
     frontend.add_extra_js_url(hass, "/local/ha_rebrand/ha-rebrand-injector.js")
@@ -278,15 +288,18 @@ def _unregister_authorize_static_path(hass: HomeAssistant) -> None:
         resources_to_remove = []
         for resource in router.resources():
             # Check if this resource matches /auth/authorize
-            if hasattr(resource, '_path') and resource._path == '/auth/authorize':
+            if hasattr(resource, "_path") and resource._path == "/auth/authorize":
                 resources_to_remove.append(resource)
-            elif hasattr(resource, 'canonical') and resource.canonical == '/auth/authorize':
+            elif (
+                hasattr(resource, "canonical")
+                and resource.canonical == "/auth/authorize"
+            ):
                 resources_to_remove.append(resource)
-            elif hasattr(resource, 'url_for'):
+            elif hasattr(resource, "url_for"):
                 try:
                     # Try to get the URL
                     url = str(resource.url_for())
-                    if url == '/auth/authorize':
+                    if url == "/auth/authorize":
                         resources_to_remove.append(resource)
                 except Exception:
                     pass
@@ -294,18 +307,24 @@ def _unregister_authorize_static_path(hass: HomeAssistant) -> None:
         for resource in resources_to_remove:
             # aiohttp doesn't have a clean way to remove resources,
             # but we can unindex it from the router's name lookup
-            if hasattr(router, 'unindex_resource'):
+            if hasattr(router, "unindex_resource"):
                 router.unindex_resource(resource)
             # Also remove from _resources list if possible
-            if hasattr(router, '_resources') and resource in router._resources:
+            if hasattr(router, "_resources") and resource in router._resources:
                 router._resources.remove(resource)
-            _LOGGER.warning(f"HA Rebrand: Removed existing /auth/authorize resource: {resource}")
+            _LOGGER.warning(
+                f"HA Rebrand: Removed existing /auth/authorize resource: {resource}"
+            )
 
         if not resources_to_remove:
-            _LOGGER.debug("HA Rebrand: No existing /auth/authorize resource found to remove")
+            _LOGGER.debug(
+                "HA Rebrand: No existing /auth/authorize resource found to remove"
+            )
 
     except Exception as e:
-        _LOGGER.warning(f"HA Rebrand: Could not remove existing /auth/authorize route: {e}")
+        _LOGGER.warning(
+            f"HA Rebrand: Could not remove existing /auth/authorize route: {e}"
+        )
 
 
 def _patch_index_view(hass: HomeAssistant) -> None:
@@ -313,12 +332,12 @@ def _patch_index_view(hass: HomeAssistant) -> None:
     try:
         original_get_template = frontend.IndexView.get_template
 
-        def patched_get_template(self):
+        def patched_get_template(self: Any) -> Any:
             tpl = original_get_template(self)
             original_render = tpl.render
 
-            def patched_render(*args, **kwargs):
-                html = original_render(*args, **kwargs)
+            def patched_render(*args: Any, **kwargs: Any) -> str:
+                html: str = original_render(*args, **kwargs)
                 config = hass.data.get(DOMAIN, {})
 
                 # Only inject if we have a logo configured
@@ -328,36 +347,36 @@ def _patch_index_view(hass: HomeAssistant) -> None:
 
                 logo_dark = config.get(CONF_LOGO_DARK) or logo
                 brand_name = config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)
-                hide_ohf = config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True)
+                # hide_ohf feature is handled via CSS in the style block
 
                 # Strategy 1: Enhanced CSS to immediately hide SVG and show img
                 # Multiple selectors to ensure hiding works in all scenarios
-                css_style = f'''<style>
+                css_style = """<style>
 #ha-launch-screen svg,
 #ha-launch-screen ha-svg-icon,
-home-assistant svg[viewBox="0 0 240 240"] {{
+home-assistant svg[viewBox="0 0 240 240"] {
   display: none !important;
   visibility: hidden !important;
   width: 0 !important;
   height: 0 !important;
   opacity: 0 !important;
-}}
+}
 #ha-launch-screen > img,
-#ha-launch-screen img.ha-rebrand-logo {{
+#ha-launch-screen img.ha-rebrand-logo {
   display: block !important;
   height: 120px;
   width: auto;
   max-width: 200px;
   object-fit: contain;
   margin: 0 auto;
-}}
+}
 .ohf-logo,
 a[href*="openhomefoundation"],
-#ha-launch-screen a[href*="openhomefoundation"] {{
+#ha-launch-screen a[href*="openhomefoundation"] {
   display: none !important;
   visibility: hidden !important;
-}}
-</style>'''
+}
+</style>"""
 
                 # Strategy 2: Direct HTML replacement - replace the SVG with img tag
                 # Use html_escape to prevent XSS via logo URL or brand_name
@@ -396,7 +415,7 @@ a[href*="openhomefoundation"],
 </script>'''
 
                 # Inject CSS and script into head
-                html = html.replace('</head>', css_style + backup_script + '</head>')
+                html = html.replace("</head>", css_style + backup_script + "</head>")
 
                 return html
 
@@ -414,9 +433,11 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
     """Register WebSocket commands."""
     from homeassistant.components import websocket_api
 
-    @websocket_api.websocket_command({
-        vol.Required("type"): "ha_rebrand/get_config",
-    })
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): "ha_rebrand/get_config",
+        }
+    )
     @callback
     def websocket_get_config(
         hass: HomeAssistant,
@@ -425,30 +446,37 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
     ) -> None:
         """Get rebrand configuration."""
         config = hass.data.get(DOMAIN, {})
-        connection.send_result(msg["id"], {
-            "brand_name": config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
-            "logo": config.get(CONF_LOGO),
-            "logo_dark": config.get(CONF_LOGO_DARK),
-            "favicon": config.get(CONF_FAVICON),
-            "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
-            "document_title": config.get(CONF_DOCUMENT_TITLE),
-            "replacements": config.get(CONF_REPLACEMENTS, {}),
-            "hide_open_home_foundation": config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
-            "primary_color": config.get(CONF_PRIMARY_COLOR),
-        })
+        connection.send_result(
+            msg["id"],
+            {
+                "brand_name": config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
+                "logo": config.get(CONF_LOGO),
+                "logo_dark": config.get(CONF_LOGO_DARK),
+                "favicon": config.get(CONF_FAVICON),
+                "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
+                "document_title": config.get(CONF_DOCUMENT_TITLE),
+                "replacements": config.get(CONF_REPLACEMENTS, {}),
+                "hide_open_home_foundation": config.get(
+                    CONF_HIDE_OPEN_HOME_FOUNDATION, True
+                ),
+                "primary_color": config.get(CONF_PRIMARY_COLOR),
+            },
+        )
 
-    @websocket_api.websocket_command({
-        vol.Required("type"): "ha_rebrand/update_config",
-        vol.Optional("brand_name"): cv.string,
-        vol.Optional("logo"): vol.Any(cv.string, None),
-        vol.Optional("logo_dark"): vol.Any(cv.string, None),
-        vol.Optional("favicon"): vol.Any(cv.string, None),
-        vol.Optional("sidebar_title"): cv.string,
-        vol.Optional("document_title"): cv.string,
-        vol.Optional("replacements"): vol.Schema({cv.string: cv.string}),
-        vol.Optional("hide_open_home_foundation"): cv.boolean,
-        vol.Optional("primary_color"): vol.Any(cv.string, None),
-    })
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): "ha_rebrand/update_config",
+            vol.Optional("brand_name"): cv.string,
+            vol.Optional("logo"): vol.Any(cv.string, None),
+            vol.Optional("logo_dark"): vol.Any(cv.string, None),
+            vol.Optional("favicon"): vol.Any(cv.string, None),
+            vol.Optional("sidebar_title"): cv.string,
+            vol.Optional("document_title"): cv.string,
+            vol.Optional("replacements"): vol.Schema({cv.string: cv.string}),
+            vol.Optional("hide_open_home_foundation"): cv.boolean,
+            vol.Optional("primary_color"): vol.Any(cv.string, None),
+        }
+    )
     @websocket_api.require_admin
     @websocket_api.async_response
     async def websocket_update_config(
@@ -500,20 +528,24 @@ class RebrandConfigView(HomeAssistantView):
         """Initialize the view."""
         self.hass = hass
 
-    async def get(self, request):
+    async def get(self, request: web.Request) -> web.Response:
         """Handle GET request."""
         config = self.hass.data.get(DOMAIN, {})
-        return self.json({
-            "brand_name": config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
-            "logo": config.get(CONF_LOGO),
-            "logo_dark": config.get(CONF_LOGO_DARK),
-            "favicon": config.get(CONF_FAVICON),
-            "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
-            "document_title": config.get(CONF_DOCUMENT_TITLE),
-            "replacements": config.get(CONF_REPLACEMENTS, {}),
-            "hide_open_home_foundation": config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
-            "primary_color": config.get(CONF_PRIMARY_COLOR),
-        })
+        return self.json(
+            {
+                "brand_name": config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
+                "logo": config.get(CONF_LOGO),
+                "logo_dark": config.get(CONF_LOGO_DARK),
+                "favicon": config.get(CONF_FAVICON),
+                "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
+                "document_title": config.get(CONF_DOCUMENT_TITLE),
+                "replacements": config.get(CONF_REPLACEMENTS, {}),
+                "hide_open_home_foundation": config.get(
+                    CONF_HIDE_OPEN_HOME_FOUNDATION, True
+                ),
+                "primary_color": config.get(CONF_PRIMARY_COLOR),
+            }
+        )
 
 
 class RebrandUploadView(HomeAssistantView):
@@ -527,7 +559,7 @@ class RebrandUploadView(HomeAssistantView):
         """Initialize the view."""
         self.hass = hass
 
-    async def post(self, request):
+    async def post(self, request: web.Request) -> web.Response:
         """Handle file upload with security checks."""
         # Check if user is admin
         if not request["hass_user"].is_admin:
@@ -543,8 +575,10 @@ class RebrandUploadView(HomeAssistantView):
         # Validate file_type against allowlist
         if file_type not in ALLOWED_FILE_TYPES:
             return self.json(
-                {"error": f"Invalid file type. Allowed: {', '.join(ALLOWED_FILE_TYPES)}"},
-                status_code=400
+                {
+                    "error": f"Invalid file type. Allowed: {', '.join(ALLOWED_FILE_TYPES)}"
+                },
+                status_code=400,
             )
 
         # Get and validate file extension
@@ -553,16 +587,20 @@ class RebrandUploadView(HomeAssistantView):
 
         if ext not in ALLOWED_EXTENSIONS:
             return self.json(
-                {"error": f"Invalid file extension. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"},
-                status_code=400
+                {
+                    "error": f"Invalid file extension. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+                },
+                status_code=400,
             )
 
         # Read file with size limit
         content = file_field.file.read(MAX_FILE_SIZE + 1)
         if len(content) > MAX_FILE_SIZE:
             return self.json(
-                {"error": f"File too large. Maximum size is {MAX_FILE_SIZE // (1024 * 1024)}MB."},
-                status_code=400
+                {
+                    "error": f"File too large. Maximum size is {MAX_FILE_SIZE // (1024 * 1024)}MB."
+                },
+                status_code=400,
             )
 
         # Save file using executor to avoid blocking
@@ -577,11 +615,13 @@ class RebrandUploadView(HomeAssistantView):
         # Return the URL path
         url_path = f"/local/ha_rebrand/{new_filename}"
 
-        return self.json({
-            "success": True,
-            "path": url_path,
-            "filename": new_filename,
-        })
+        return self.json(
+            {
+                "success": True,
+                "path": url_path,
+                "filename": new_filename,
+            }
+        )
 
     @staticmethod
     def _write_file(file_path: str, content: bytes) -> None:
@@ -602,10 +642,11 @@ class RebrandAuthorizeView(HomeAssistantView):
         self.hass = hass
         self._authorize_html = None
 
-    def _read_authorize_html(self) -> str:
+    def _read_authorize_html(self) -> str | None:
         """Read authorize.html from hass_frontend package."""
         try:
             import hass_frontend
+
             frontend_path = Path(hass_frontend.__file__).parent
             authorize_path = frontend_path / "authorize.html"
             if authorize_path.exists():
@@ -616,7 +657,7 @@ class RebrandAuthorizeView(HomeAssistantView):
             _LOGGER.warning(f"Error reading authorize.html: {e}")
         return None
 
-    async def get(self, request):
+    async def get(self, request: web.Request) -> web.Response:
         """Serve modified authorize.html with custom logo."""
         # Read original HTML (cache it for performance)
         if self._authorize_html is None:
@@ -642,26 +683,25 @@ class RebrandAuthorizeView(HomeAssistantView):
             # Replace the logo image src (use html_escape to prevent XSS)
             html_content = html_content.replace(
                 'src="/static/icons/favicon-192x192.png"',
-                f'src="{html_escape(logo_url)}"'
+                f'src="{html_escape(logo_url)}"',
             )
 
         # Replace alt text (use html_escape to prevent XSS)
         html_content = html_content.replace(
-            'alt="Home Assistant"',
-            f'alt="{html_escape(brand_name)}"'
+            'alt="Home Assistant"', f'alt="{html_escape(brand_name)}"'
         )
 
         # Replace page title (use html_escape to prevent XSS)
         html_content = html_content.replace(
-            '<title>Home Assistant</title>',
-            f'<title>{html_escape(document_title)}</title>'
+            "<title>Home Assistant</title>",
+            f"<title>{html_escape(document_title)}</title>",
         )
 
         # Inject primary color CSS for login page styling
         # Validate color to prevent CSS injection attacks
         primary_color = _validate_color(config.get(CONF_PRIMARY_COLOR))
         if primary_color:
-            color_style = f'''<style>
+            color_style = f"""<style>
 :root, html {{
   --primary-color: {primary_color} !important;
   --light-primary-color: {primary_color}40 !important;
@@ -687,15 +727,15 @@ mwc-button, ha-button {{
   --mdc-theme-on-primary: #ffffff !important;
   --ha-color-fill-primary-loud-resting: {primary_color} !important;
 }}
-</style>'''
-            html_content = html_content.replace('</head>', color_style + '</head>')
+</style>"""
+            html_content = html_content.replace("</head>", color_style + "</head>")
 
-        _LOGGER.debug(f"Serving custom authorize page with logo: {logo_url}, primary_color: {primary_color}")
+        _LOGGER.debug(
+            f"Serving custom authorize page with logo: {logo_url}, primary_color: {primary_color}"
+        )
 
         return web.Response(
-            text=html_content,
-            content_type="text/html",
-            charset="utf-8"
+            text=html_content, content_type="text/html", charset="utf-8"
         )
 
 
@@ -710,13 +750,11 @@ class RebrandSaveConfigView(HomeAssistantView):
         """Initialize the view."""
         self.hass = hass
 
-    async def post(self, request):
+    async def post(self, request: web.Request) -> web.Response:
         """Save configuration to ha_rebrand.yaml."""
         # Check if user is admin
         if not request["hass_user"].is_admin:
             return self.json({"error": "Admin privileges required"}, status_code=403)
-
-        import yaml
 
         config = self.hass.data.get(DOMAIN, {})
 
@@ -744,15 +782,18 @@ class RebrandSaveConfigView(HomeAssistantView):
             partial(self._write_yaml, config_path, yaml_config)
         )
 
-        return self.json({
-            "success": True,
-            "path": config_path,
-            "message": "Configuration saved. Restart Home Assistant to apply changes.",
-        })
+        return self.json(
+            {
+                "success": True,
+                "path": config_path,
+                "message": "Configuration saved. Restart Home Assistant to apply changes.",
+            }
+        )
 
     @staticmethod
     def _write_yaml(config_path: str, yaml_config: dict) -> None:
         """Write YAML configuration to file."""
         import yaml
+
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(yaml_config, f, default_flow_style=False, allow_unicode=True)
