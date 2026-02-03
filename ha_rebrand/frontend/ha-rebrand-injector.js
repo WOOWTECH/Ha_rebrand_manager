@@ -20,6 +20,9 @@
   let configRetryCount = 0;
   let isInitialized = false;
   let mainObserver = null;
+  let isApplying = false;  // Re-entrance guard to prevent feedback loops
+  let titleObserverCreated = false;  // Prevent multiple title observers
+  let waitForSidebarRafPending = false;  // Prevent multiple RAF callbacks flooding
 
   // Cached element references for performance
   let cachedSidebar = null;
@@ -81,29 +84,41 @@
 
   /**
    * Replace document title
+   * Note: Only creates observer once to prevent multiple observers stacking up
    */
   function replaceDocumentTitle() {
     if (!config?.document_title) return;
 
     const originalTitle = document.title;
 
-    // Replace "Home Assistant" in title
-    if (originalTitle.includes('Home Assistant')) {
-      document.title = originalTitle.replace(/Home Assistant/gi, config.document_title);
-    } else if (originalTitle === '' || originalTitle === 'Home Assistant') {
+    // Replace "Home Assistant" in title (only if it produces a different result)
+    // This prevents infinite loop when document_title contains "Home Assistant"
+    const newTitle = originalTitle.replace(/Home Assistant/gi, config.document_title);
+    if (newTitle !== originalTitle) {
+      document.title = newTitle;
+    } else if (originalTitle === '') {
       document.title = config.document_title;
     }
 
-    // Monitor title changes
-    const titleObserver = new MutationObserver(() => {
-      if (document.title.includes('Home Assistant')) {
-        document.title = document.title.replace(/Home Assistant/gi, config.document_title);
-      }
-    });
+    // Only create title observer once to prevent multiple observers stacking up
+    if (!titleObserverCreated) {
+      titleObserverCreated = true;
 
-    const titleElement = document.querySelector('title');
-    if (titleElement) {
-      titleObserver.observe(titleElement, { childList: true, characterData: true, subtree: true });
+      // Monitor title changes
+      const titleObserver = new MutationObserver(() => {
+        const currentTitle = document.title;
+        const newTitle = currentTitle.replace(/Home Assistant/gi, config.document_title);
+        // Only update if the replacement actually changes the title
+        // This prevents infinite loop when document_title contains "Home Assistant"
+        if (newTitle !== currentTitle) {
+          document.title = newTitle;
+        }
+      });
+
+      const titleElement = document.querySelector('title');
+      if (titleElement) {
+        titleObserver.observe(titleElement, { childList: true, characterData: true, subtree: true });
+      }
     }
   }
 
@@ -584,20 +599,27 @@
   /**
    * Apply all rebrand changes
    * Note: Each function has its own early-exit checks for missing config values
+   * Uses re-entrance guard to prevent feedback loops from MutationObserver
    */
   function applyRebrand() {
     if (!config) return false;
+    if (isApplying) return false;  // Prevent re-entrance during DOM modifications
 
-    replaceFavicon();
-    replaceDocumentTitle();
-    const sidebarReplaced = replaceSidebar();
-    replaceLogos();
-    // replaceText() and replaceShadowDOMText() now have proper early-exit checks
-    // to prevent expensive DOM traversal when no replacements are configured
-    replaceText();
-    applyPrimaryColor();
+    isApplying = true;
+    try {
+      replaceFavicon();
+      replaceDocumentTitle();
+      const sidebarReplaced = replaceSidebar();
+      replaceLogos();
+      // replaceText() and replaceShadowDOMText() now have proper early-exit checks
+      // to prevent expensive DOM traversal when no replacements are configured
+      replaceText();
+      applyPrimaryColor();
 
-    return sidebarReplaced;
+      return sidebarReplaced;
+    } finally {
+      isApplying = false;
+    }
   }
 
   /**
@@ -615,13 +637,34 @@
       }
 
       // Use MutationObserver to wait for sidebar
+      // Use requestAnimationFrame to break synchronous mutation loop
+      // Only schedule one RAF callback at a time to prevent queue flooding
       const observer = new MutationObserver((mutations, obs) => {
-        if (applyRebrand()) {
-          console.log('[HA Rebrand] Successfully applied branding after DOM ready');
-          isInitialized = true;
+        // Only schedule one RAF callback at a time
+        if (waitForSidebarRafPending) return;
+        waitForSidebarRafPending = true;
+
+        requestAnimationFrame(() => {
+          waitForSidebarRafPending = false;
+
+          // Disconnect BEFORE making changes to prevent feedback loop
           obs.disconnect();
-          resolve(true);
-        }
+
+          if (applyRebrand()) {
+            console.log('[HA Rebrand] Successfully applied branding after DOM ready');
+            isInitialized = true;
+            resolve(true);
+            return;
+          }
+
+          // Reconnect if not successful yet (sidebar not found)
+          const ha = document.querySelector('home-assistant');
+          if (ha) {
+            obs.observe(ha, { childList: true, subtree: true });
+          } else {
+            obs.observe(document.body, { childList: true });
+          }
+        });
       });
 
       // Only observe home-assistant element for better performance
