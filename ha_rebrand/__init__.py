@@ -74,7 +74,7 @@ def _validate_color(color: str) -> str:
     # Only allow #RGB, #RRGGBB, #RRGGBBAA formats
     if _COLOR_PATTERN.match(color):
         return color
-    _LOGGER.warning(f"Invalid color format rejected: {color}")
+    _LOGGER.warning("Invalid color format rejected: %s", color)
     return ""
 
 
@@ -162,9 +162,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) ->
     # Register custom authorize view to replace login page logo
     # First, we need to remove the existing static route for /auth/authorize
     # since Home Assistant's frontend component registers it as a static file
-    _unregister_authorize_static_path(hass)
-    hass.http.register_view(RebrandAuthorizeView(hass))
-    _LOGGER.info("HA Rebrand: Registered RebrandAuthorizeView for /auth/authorize")
+    # Only register custom view if we successfully removed the original
+    if _unregister_authorize_static_path(hass):
+        hass.http.register_view(RebrandAuthorizeView(hass))
+        _LOGGER.info("HA Rebrand: Registered RebrandAuthorizeView for /auth/authorize")
+    else:
+        _LOGGER.warning(
+            "HA Rebrand: Could not replace authorize view - "
+            "login page branding will use JavaScript fallback only"
+        )
 
     # Register panel (only once)
     if not hass.data.get(DATA_PANEL_REGISTERED):
@@ -215,8 +221,10 @@ def _load_config_json(path: str) -> dict[str, Any]:
             with open(path, encoding="utf-8") as f:
                 result: dict[str, Any] = json.load(f)
                 return result
-        except Exception:
-            pass
+        except json.JSONDecodeError as e:
+            _LOGGER.warning("Invalid JSON in config file %s: %s", path, e)
+        except OSError as e:
+            _LOGGER.warning("Could not read config file %s: %s", path, e)
     return {}
 
 
@@ -278,8 +286,11 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
     _patch_index_view(hass)
 
 
-def _unregister_authorize_static_path(hass: HomeAssistant) -> None:
-    """Remove the existing /auth/authorize static path so we can register our custom view."""
+def _unregister_authorize_static_path(hass: HomeAssistant) -> bool:
+    """Remove the existing /auth/authorize static path so we can register our custom view.
+
+    Returns True if successfully removed, False otherwise.
+    """
     try:
         app = hass.http.app
         router = app.router
@@ -301,8 +312,15 @@ def _unregister_authorize_static_path(hass: HomeAssistant) -> None:
                     url = str(resource.url_for())
                     if url == "/auth/authorize":
                         resources_to_remove.append(resource)
-                except Exception:
+                except (ValueError, KeyError):
+                    # url_for() may fail for some resource types
                     pass
+
+        if not resources_to_remove:
+            _LOGGER.debug(
+                "HA Rebrand: No existing /auth/authorize resource found to remove"
+            )
+            return False
 
         for resource in resources_to_remove:
             # aiohttp doesn't have a clean way to remove resources,
@@ -312,19 +330,17 @@ def _unregister_authorize_static_path(hass: HomeAssistant) -> None:
             # Also remove from _resources list if possible
             if hasattr(router, "_resources") and resource in router._resources:
                 router._resources.remove(resource)
-            _LOGGER.warning(
-                f"HA Rebrand: Removed existing /auth/authorize resource: {resource}"
+            _LOGGER.info(
+                "HA Rebrand: Removed existing /auth/authorize resource: %s", resource
             )
 
-        if not resources_to_remove:
-            _LOGGER.debug(
-                "HA Rebrand: No existing /auth/authorize resource found to remove"
-            )
+        return True
 
-    except Exception as e:
-        _LOGGER.warning(
-            f"HA Rebrand: Could not remove existing /auth/authorize route: {e}"
+    except (AttributeError, RuntimeError) as e:
+        _LOGGER.error(
+            "HA Rebrand: Failed to remove /auth/authorize route: %s", e
         )
+        return False
 
 
 def _patch_index_view(hass: HomeAssistant) -> None:
@@ -424,8 +440,8 @@ a[href*="openhomefoundation"],
 
         frontend.IndexView.get_template = patched_get_template
         _LOGGER.info("Successfully patched IndexView for early branding injection")
-    except Exception as e:
-        _LOGGER.warning(f"Failed to patch IndexView: {e}")
+    except (AttributeError, TypeError) as e:
+        _LOGGER.warning("Failed to patch IndexView: %s", e)
 
 
 @callback
@@ -653,8 +669,8 @@ class RebrandAuthorizeView(HomeAssistantView):
                 return authorize_path.read_text("utf-8")
         except ImportError:
             _LOGGER.warning("Could not import hass_frontend package")
-        except Exception as e:
-            _LOGGER.warning(f"Error reading authorize.html: {e}")
+        except OSError as e:
+            _LOGGER.warning("Error reading authorize.html: %s", e)
         return None
 
     async def get(self, request: web.Request) -> web.Response:
@@ -666,9 +682,25 @@ class RebrandAuthorizeView(HomeAssistantView):
             )
 
         if self._authorize_html is None:
-            _LOGGER.warning("Could not read authorize.html, falling back to default")
-            # Return 404 to let the next handler (static file) handle it
-            raise web.HTTPNotFound()
+            _LOGGER.error(
+                "Could not read authorize.html from hass_frontend - "
+                "serving minimal fallback page"
+            )
+            # Return a simple redirect page that won't be cached by proxies
+            # Avoids 404 which can cause caching issues with Cloudflare/Nginx
+            return web.Response(
+                text=(
+                    '<html><head><meta http-equiv="refresh" content="0;url=/">'
+                    "</head><body>Redirecting to login...</body></html>"
+                ),
+                content_type="text/html",
+                status=200,
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                },
+            )
 
         html_content = self._authorize_html
 
@@ -731,11 +763,21 @@ mwc-button, ha-button {{
             html_content = html_content.replace("</head>", color_style + "</head>")
 
         _LOGGER.debug(
-            f"Serving custom authorize page with logo: {logo_url}, primary_color: {primary_color}"
+            "Serving custom authorize page with logo: %s, primary_color: %s",
+            logo_url,
+            primary_color,
         )
 
         return web.Response(
-            text=html_content, content_type="text/html", charset="utf-8"
+            text=html_content,
+            content_type="text/html",
+            charset="utf-8",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+                "X-Content-Type-Options": "nosniff",
+            },
         )
 
 
