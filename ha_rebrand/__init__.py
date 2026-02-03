@@ -308,12 +308,14 @@ def _unregister_authorize_static_path(hass: HomeAssistant) -> bool:
                 resources_to_remove.append(resource)
             elif hasattr(resource, "url_for"):
                 try:
-                    # Try to get the URL
+                    # Try to get the URL - note: StaticResource requires filename arg
+                    # so we skip those by catching TypeError
                     url = str(resource.url_for())
                     if url == "/auth/authorize":
                         resources_to_remove.append(resource)
-                except (ValueError, KeyError):
+                except (ValueError, KeyError, TypeError):
                     # url_for() may fail for some resource types
+                    # StaticResource requires filename argument
                     pass
 
         if not resources_to_remove:
@@ -336,7 +338,7 @@ def _unregister_authorize_static_path(hass: HomeAssistant) -> bool:
 
         return True
 
-    except (AttributeError, RuntimeError) as e:
+    except (AttributeError, RuntimeError, TypeError) as e:
         _LOGGER.error(
             "HA Rebrand: Failed to remove /auth/authorize route: %s", e
         )
