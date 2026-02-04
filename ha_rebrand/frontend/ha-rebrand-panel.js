@@ -411,7 +411,6 @@ class HaRebrandPanel extends LitElement {
       favicon: "",
       sidebar_title: "",
       document_title: "",
-      replacements: {},
       hide_open_home_foundation: true,
       primary_color: "",
     };
@@ -444,7 +443,6 @@ class HaRebrandPanel extends LitElement {
         favicon: result.favicon || "",
         sidebar_title: result.sidebar_title || "",
         document_title: result.document_title || "",
-        replacements: result.replacements || {},
         hide_open_home_foundation: result.hide_open_home_foundation !== false,
         primary_color: result.primary_color || "",
       };
