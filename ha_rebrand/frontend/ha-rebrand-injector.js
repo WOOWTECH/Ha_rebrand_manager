@@ -11,7 +11,9 @@
   'use strict';
 
   // Use static JSON file instead of API endpoint to avoid routing issues
-  const REBRAND_CONFIG_URL = '/local/ha_rebrand/config.json';
+  // Uses /ha_rebrand/ path (not /local/) because /local/ has 31-day cache headers
+  // from HA core, which causes CDN/proxy caching issues
+  const REBRAND_CONFIG_URL = '/ha_rebrand/config.json';
   const CONFIG_RETRY_INTERVAL = 2000; // ms between config fetch retries
   const MAX_CONFIG_RETRIES = 5; // Maximum config fetch retry attempts
   const OBSERVER_TIMEOUT = 300000; // 5 minutes - disconnect observer after this time

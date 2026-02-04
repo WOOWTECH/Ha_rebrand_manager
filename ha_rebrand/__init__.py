@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -50,6 +51,20 @@ _SVG_PATTERN = re.compile(r'<svg[^>]*viewBox="0 0 240 240"[^>]*>.*?</svg>', re.D
 
 # Color validation pattern
 _COLOR_PATTERN = re.compile(r"^#[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3})?(?:[0-9A-Fa-f]{2})?$")
+
+
+def _get_file_hash(filepath: str) -> str:
+    """Get short hash of file content for cache busting.
+
+    Returns a short MD5 hash of the file contents, or "0" if file doesn't exist.
+    """
+    if not os.path.exists(filepath):
+        return "0"
+    try:
+        with open(filepath, "rb") as f:
+            return hashlib.md5(f.read()).hexdigest()[:8]
+    except OSError:
+        return "0"
 
 
 def _escape_js_string(s: str) -> str:
@@ -174,6 +189,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) ->
 
     # Register panel (only once)
     if not hass.data.get(DATA_PANEL_REGISTERED):
+        # Get content hash for panel URL cache busting
+        panel_path = os.path.join(uploads_dir, "ha-rebrand-panel.js")
+        panel_hash = await hass.async_add_executor_job(_get_file_hash, panel_path)
+
         await panel_custom.async_register_panel(
             hass,
             webcomponent_name=PANEL_COMPONENT_NAME,
@@ -181,7 +200,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) ->
             config_panel_domain=DOMAIN,
             sidebar_title=PANEL_TITLE,
             sidebar_icon=PANEL_ICON,
-            module_url="/ha_rebrand/ha-rebrand-panel.js",
+            module_url=f"/ha_rebrand/ha-rebrand-panel.js?v={panel_hash}",
             embed_iframe=False,
             require_admin=True,
         )
@@ -275,12 +294,21 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
     await hass.async_add_executor_job(_copy_frontend_files, frontend_src, frontend_dest)
 
     # Register the rebrand static path using new API
+    # IMPORTANT: Uses cache_headers=False to prevent CDN/proxy caching issues
     await hass.http.async_register_static_paths(
         [StaticPathConfig("/ha_rebrand", frontend_dest, cache_headers=False)]
     )
 
+    # Get content hash for cache busting (defense in depth for CDN/proxies)
+    # This ensures that even if a CDN ignores cache-control headers,
+    # the URL changes when file content changes
+    injector_path = os.path.join(frontend_dest, "ha-rebrand-injector.js")
+    injector_hash = await hass.async_add_executor_job(_get_file_hash, injector_path)
+
     # Register the injector script to be loaded on every page (for post-auth pages)
-    frontend.add_extra_js_url(hass, "/local/ha_rebrand/ha-rebrand-injector.js")
+    # Uses /ha_rebrand/ path (not /local/) because /local/ has 31-day cache headers
+    # from HA core, which causes CDN/proxy caching issues
+    frontend.add_extra_js_url(hass, f"/ha_rebrand/ha-rebrand-injector.js?v={injector_hash}")
 
     # Patch IndexView to inject early branding script for loading screen
     _patch_index_view(hass)
