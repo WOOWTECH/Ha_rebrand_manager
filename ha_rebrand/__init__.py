@@ -32,10 +32,8 @@ from .const import (
     CONF_LOGO,
     CONF_LOGO_DARK,
     CONF_PRIMARY_COLOR,
-    CONF_REPLACEMENTS,
     CONF_SIDEBAR_TITLE,
     DEFAULT_BRAND_NAME,
-    DEFAULT_REPLACEMENTS,
     DOMAIN,
     MAX_FILE_SIZE,
     PANEL_COMPONENT_NAME,
@@ -98,6 +96,7 @@ type HaRebrandConfigEntry = ConfigEntry
 DATA_PANEL_REGISTERED = f"{DOMAIN}_panel_registered"
 
 # Keep CONFIG_SCHEMA for backward compatibility (YAML still works)
+# Note: extra=vol.ALLOW_EXTRA allows existing configs with 'replacements' to load without error
 CONFIG_SCHEMA = vol.Schema(
     {
         DOMAIN: vol.Schema(
@@ -108,10 +107,8 @@ CONFIG_SCHEMA = vol.Schema(
                 vol.Optional(CONF_FAVICON): cv.string,
                 vol.Optional(CONF_SIDEBAR_TITLE): cv.string,
                 vol.Optional(CONF_DOCUMENT_TITLE): cv.string,
-                vol.Optional(CONF_REPLACEMENTS, default={}): vol.Schema(
-                    {cv.string: cv.string}
-                ),
-            }
+            },
+            extra=vol.ALLOW_EXTRA,
         )
     },
     extra=vol.ALLOW_EXTRA,
@@ -155,7 +152,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) ->
         CONF_DOCUMENT_TITLE: config.get(
             CONF_DOCUMENT_TITLE, config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)
         ),
-        CONF_REPLACEMENTS: config.get(CONF_REPLACEMENTS, DEFAULT_REPLACEMENTS),
         CONF_HIDE_OPEN_HOME_FOUNDATION: config.get(
             CONF_HIDE_OPEN_HOME_FOUNDATION, True
         ),
@@ -263,7 +259,6 @@ async def _async_write_config_json(hass: HomeAssistant) -> None:
         "favicon": config.get(CONF_FAVICON),
         "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
         "document_title": config.get(CONF_DOCUMENT_TITLE),
-        "replacements": config.get(CONF_REPLACEMENTS, {}),
         "hide_open_home_foundation": config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
         "primary_color": config.get(CONF_PRIMARY_COLOR),
     }
@@ -524,7 +519,6 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
                 "favicon": config.get(CONF_FAVICON),
                 "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
                 "document_title": config.get(CONF_DOCUMENT_TITLE),
-                "replacements": config.get(CONF_REPLACEMENTS, {}),
                 "hide_open_home_foundation": config.get(
                     CONF_HIDE_OPEN_HOME_FOUNDATION, True
                 ),
@@ -541,7 +535,6 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
             vol.Optional("favicon"): vol.Any(cv.string, None),
             vol.Optional("sidebar_title"): cv.string,
             vol.Optional("document_title"): cv.string,
-            vol.Optional("replacements"): vol.Schema({cv.string: cv.string}),
             vol.Optional("hide_open_home_foundation"): cv.boolean,
             vol.Optional("primary_color"): vol.Any(cv.string, None),
         }
@@ -568,8 +561,6 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
             config[CONF_SIDEBAR_TITLE] = msg["sidebar_title"]
         if "document_title" in msg:
             config[CONF_DOCUMENT_TITLE] = msg["document_title"]
-        if "replacements" in msg:
-            config[CONF_REPLACEMENTS] = msg["replacements"]
         if "hide_open_home_foundation" in msg:
             config[CONF_HIDE_OPEN_HOME_FOUNDATION] = msg["hide_open_home_foundation"]
         if "primary_color" in msg:
@@ -608,7 +599,6 @@ class RebrandConfigView(HomeAssistantView):
                 "favicon": config.get(CONF_FAVICON),
                 "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
                 "document_title": config.get(CONF_DOCUMENT_TITLE),
-                "replacements": config.get(CONF_REPLACEMENTS, {}),
                 "hide_open_home_foundation": config.get(
                     CONF_HIDE_OPEN_HOME_FOUNDATION, True
                 ),
@@ -868,8 +858,6 @@ class RebrandSaveConfigView(HomeAssistantView):
             yaml_config[CONF_SIDEBAR_TITLE] = config[CONF_SIDEBAR_TITLE]
         if config.get(CONF_DOCUMENT_TITLE):
             yaml_config[CONF_DOCUMENT_TITLE] = config[CONF_DOCUMENT_TITLE]
-        if config.get(CONF_REPLACEMENTS):
-            yaml_config[CONF_REPLACEMENTS] = config[CONF_REPLACEMENTS]
 
         # Write to file using executor to avoid blocking
         config_path = self.hass.config.path("ha_rebrand.yaml")
