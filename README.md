@@ -196,6 +196,7 @@ For detailed technical explanation, see [Proxy_Issue_Solution_Plan.md](Proxy_Iss
 - Text replacements work on visible text only, not on element attributes
 - Changes to configuration require a page refresh to take effect
 - Primary color only supports hex format (`#RGB`, `#RRGGBB`, or `#RRGGBBAA`)
+- If you switch between Light/Dark mode, you need to refresh the page to see the updated logo
 
 ## Version History
 
