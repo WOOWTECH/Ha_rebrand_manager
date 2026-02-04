@@ -386,17 +386,36 @@ def _patch_index_view(hass: HomeAssistant) -> None:
                 html: str = original_render(*args, **kwargs)
                 config = hass.data.get(DOMAIN, {})
 
-                # Only inject if we have a logo configured
+                # Always inject OHF hiding CSS if configured (independent of logo)
+                hide_ohf = config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True)
+                if hide_ohf:
+                    ohf_hide_css = """<style>
+/* Hide Open Home Foundation badge on loading screen */
+.ohf-logo,
+#ha-launch-screen .ohf-logo,
+a[href*="openhomefoundation"],
+#ha-launch-screen a[href*="openhomefoundation"],
+img[src*="ohf-badge"],
+img[alt*="Open Home Foundation"] {
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+</style>"""
+                    html = html.replace("</head>", ohf_hide_css + "</head>")
+
+                # Only inject logo replacement if we have a logo configured
                 logo = config.get(CONF_LOGO)
                 if not logo:
                     return html
 
                 logo_dark = config.get(CONF_LOGO_DARK) or logo
                 brand_name = config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)
-                # hide_ohf feature is handled via CSS in the style block
 
                 # Strategy 1: Enhanced CSS to immediately hide SVG and show img
                 # Multiple selectors to ensure hiding works in all scenarios
+                # Note: OHF hiding CSS is now injected separately (independent of logo)
                 css_style = """<style>
 #ha-launch-screen svg,
 #ha-launch-screen ha-svg-icon,
@@ -415,12 +434,6 @@ home-assistant svg[viewBox="0 0 240 240"] {
   max-width: 200px;
   object-fit: contain;
   margin: 0 auto;
-}
-.ohf-logo,
-a[href*="openhomefoundation"],
-#ha-launch-screen a[href*="openhomefoundation"] {
-  display: none !important;
-  visibility: hidden !important;
 }
 </style>"""
 
