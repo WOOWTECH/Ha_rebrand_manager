@@ -144,6 +144,52 @@ This component includes security measures to prevent XSS and CSS injection attac
 2. Ensure you have admin privileges
 3. Restart Home Assistant
 
+### Remote access not working (stuck on "Loading data")
+
+If you're using a reverse proxy (Nginx Proxy Manager, Cloudflare Tunnel, etc.) and remote access fails while local access works:
+
+**1. Configure `trusted_proxies` in Home Assistant**
+
+Add the following to your `configuration.yaml`:
+
+```yaml
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 172.30.32.0/23   # Supervisor network (Core + Add-ons)
+    - 127.0.0.1        # Localhost
+    - ::1              # IPv6 localhost
+```
+
+**Why `172.30.32.0/23`?** This CIDR covers both:
+- `172.30.32.0/24` - Home Assistant Core services
+- `172.30.33.0/24` - Add-ons (including Nginx Proxy Manager, Cloudflared)
+
+**2. Configure Nginx Proxy Manager**
+
+1. Open NPM Admin Panel (`http://<ha-ip>:81`)
+2. Edit your proxy host for Home Assistant
+3. In **Details** tab: Enable **WebSockets Support**
+4. In **Advanced** tab: **Delete ALL custom nginx configuration** (NPM handles WebSocket automatically)
+5. Save
+
+**3. If you see "Congratulations" page instead of Home Assistant**
+
+This means NPM cannot resolve the hostname. Change the Forward Hostname:
+1. Edit proxy host in NPM
+2. Change **Forward Hostname / IP** from `homeassistant` to `172.30.32.1`
+3. Keep **Forward Port** as `8123`
+4. Save
+
+**4. Verify ha_rebrand is not the cause**
+
+Temporarily disable ha_rebrand to test:
+- Go to Settings → Devices & Services → HA Rebrand → Disable
+- Restart Home Assistant and test remote access
+- If it works after disabling, please report the issue on GitHub
+
+For detailed technical explanation, see [Proxy_Issue_Solution_Plan.md](Proxy_Issue_Solution_Plan.md).
+
 ## Limitations
 
 - Some deeply nested elements in the HA core UI may not be replaced

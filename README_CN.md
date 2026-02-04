@@ -158,6 +158,52 @@ ha_rebrand:
 2. 確保您具有管理員權限
 3. 重新啟動 Home Assistant
 
+### 遠端存取無法使用（卡在「載入資料中」）
+
+如果您使用反向代理（Nginx Proxy Manager、Cloudflare Tunnel 等），且遠端存取失敗但本機存取正常：
+
+**1. 在 Home Assistant 中設定 `trusted_proxies`**
+
+在您的 `configuration.yaml` 中新增以下內容：
+
+```yaml
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 172.30.32.0/23   # Supervisor 網路（Core + Add-ons）
+    - 127.0.0.1        # 本機
+    - ::1              # IPv6 本機
+```
+
+**為什麼是 `172.30.32.0/23`？** 此 CIDR 涵蓋：
+- `172.30.32.0/24` - Home Assistant Core 服務
+- `172.30.33.0/24` - 附加元件（包括 Nginx Proxy Manager、Cloudflared）
+
+**2. 設定 Nginx Proxy Manager**
+
+1. 開啟 NPM 管理面板（`http://<ha-ip>:81`）
+2. 編輯您的 Home Assistant 代理主機
+3. 在 **Details** 標籤頁：啟用 **WebSockets Support**
+4. 在 **Advanced** 標籤頁：**刪除所有自訂 nginx 設定**（NPM 會自動處理 WebSocket）
+5. 儲存
+
+**3. 如果看到「Congratulations」頁面而非 Home Assistant**
+
+這表示 NPM 無法解析主機名稱。請變更轉發主機名稱：
+1. 在 NPM 中編輯代理主機
+2. 將 **Forward Hostname / IP** 從 `homeassistant` 改為 `172.30.32.1`
+3. **Forward Port** 保持 `8123`
+4. 儲存
+
+**4. 確認問題是否由 ha_rebrand 引起**
+
+暫時停用 ha_rebrand 進行測試：
+- 前往 設定 → 裝置與服務 → HA Rebrand → 停用
+- 重新啟動 Home Assistant 並測試遠端存取
+- 如果停用後恢復正常，請在 GitHub 上回報問題
+
+詳細技術說明請參閱 [Proxy_Issue_Solution_Plan.md](Proxy_Issue_Solution_Plan.md)。
+
 ## 限制說明
 
 - HA 核心 UI 中某些深層巢狀的元素可能無法被替換
