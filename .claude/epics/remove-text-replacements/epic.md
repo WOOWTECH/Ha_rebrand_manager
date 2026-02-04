@@ -1,8 +1,9 @@
 ---
 name: remove-text-replacements
-status: backlog
+status: completed
 created: 2026-02-04T08:57:20Z
-progress: 0%
+updated: 2026-02-04T09:18:53Z
+progress: 100%
 prd: .claude/prds/remove-text-replacements.md
 github: [Will be updated when synced to GitHub]
 ---
@@ -42,11 +43,11 @@ Remove the unused Text Replacements functionality from the Ha_rebrand custom com
 
 ## Task Breakdown Preview
 
-- [ ] Task 1: Remove backend code (const.py + __init__.py)
-- [ ] Task 2: Remove injector functions (ha-rebrand-injector.js)
-- [ ] Task 3: Remove panel UI and methods (ha-rebrand-panel.js)
-- [ ] Task 4: Remove translation strings (all JSON files)
-- [ ] Task 5: Verify backward compatibility
+- [x] Task 1: Remove backend code (const.py + __init__.py)
+- [x] Task 2: Remove injector functions (ha-rebrand-injector.js)
+- [x] Task 3: Remove panel UI and methods (ha-rebrand-panel.js)
+- [x] Task 4: Remove translation strings (all JSON files)
+- [x] Task 5: Verify backward compatibility
 
 ## Dependencies
 
@@ -70,13 +71,12 @@ Remove the unused Text Replacements functionality from the Ha_rebrand custom com
 
 ## Tasks Created
 
-- [ ] 001.md - Remove backend replacement code (parallel: false)
-- [ ] 002.md - Remove injector replacement functions (parallel: true, depends_on: 001)
-- [ ] 003.md - Remove panel UI and methods (parallel: true, depends_on: 001)
-- [ ] 004.md - Remove translation strings (parallel: true)
-- [ ] 005.md - Verify backward compatibility (parallel: false, depends_on: 001-004)
+- [x] 001.md - Remove backend replacement code (commit: 16d6877)
+- [x] 002.md - Remove injector replacement functions (commit: 2fcc922)
+- [x] 003.md - Remove panel UI and methods (commit: f8d0b3e)
+- [x] 004.md - Remove translation strings (commit: e1d8c5b)
+- [x] 005.md - Verify backward compatibility (all checks passed)
 
 Total tasks: 5
-Parallel tasks: 3 (002, 003, 004 can run concurrently after 001)
-Sequential tasks: 2 (001 first, 005 last)
-Estimated total effort: 5-7.5 hours
+Completed: 5/5
+Lines removed: ~304 from production code
