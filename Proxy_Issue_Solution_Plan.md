@@ -368,42 +368,7 @@ If incognito works after disabling ha_rebrand, the component is contributing to 
 
 ## 4. Solution Plan
 
-### Phase 1: Immediate Fix (NPM Configuration)
-
-The user reported that HA **was working before** adding custom nginx config to NPM.
-
-**Step 1.1: Revert NPM Custom Config**
-1. Open NPM Admin Panel (`http://<ha-ip>:81`)
-2. Edit proxy host for `matt-test-254-ha.woowtech.io`
-3. Go to **Advanced** tab
-4. **Delete ALL custom nginx configuration**
-5. Ensure **WebSockets Support** is ON in Details tab
-6. Save
-
-**Step 1.2: Test**
-- Regular browser: Should work
-- If "Congratulations" page appears, NPM hostname resolution failed
-
-**Step 1.3: If Hostname Resolution Fails**
-Change Forward Hostname from `homeassistant` to `172.30.32.1`:
-1. Edit proxy host in NPM
-2. Change **Forward Hostname / IP** to `172.30.32.1`
-3. Keep **Forward Port** as `8123`
-4. Save
-
-### Phase 2: Test Incognito Mode
-
-After Phase 1 succeeds:
-1. Close ALL incognito windows
-2. Open fresh incognito window
-3. Navigate to `https://matt-test-254-ha.woowtech.io`
-4. Complete Cloudflare Access auth
-5. Complete Home Assistant auth
-6. Verify dashboard loads (no "Loading data" spinner)
-
-### Phase 3: If Incognito Still Fails
-
-**Step 3.1: Verify Home Assistant Configuration**
+### Phase 1: Verify Home Assistant Configuration
 
 ```yaml
 # configuration.yaml
@@ -415,93 +380,22 @@ http:
     - ::1
 ```
 
-**Step 3.2: Add Minimal NPM Custom Config**
+### Phase 2: NPM Configuration
 
-Only add timeout settings (headers are handled automatically by NPM):
+**Step 1.1: NPM Custom Config**
+1. Open NPM Admin Panel (`http://<ha-ip>:81`)
+2. Edit proxy host for homeassistant
+    - Go to **Details** tab : Enable **Websockets Support**
+    - Go to **Advanced** tab : **Delete ALL custom nginx configuration**
+3. Save
 
-```nginx
-# NPM Advanced tab - ONLY these two lines
-proxy_read_timeout 86400s;
-proxy_send_timeout 86400s;
-```
+**Step 1.2: Test**
+- Regular browser: Should work
+- If "Congratulations" page appears, NPM hostname resolution failed
 
-**Step 3.3: Check Cloudflare Zero Trust Settings**
-
-1. Go to [Cloudflare Zero Trust Dashboard](https://one.dash.cloudflare.com/)
-2. Navigate to **Access** → **Applications**
-3. Edit your Home Assistant application
-4. Under **Settings**, look for:
-   - **Session Duration**: Set to 24 hours or longer
-   - **Cookie Settings** (if available): Set SameSite to `None`
-
-### Phase 4: Diagnose with DevTools
-
-If still failing, gather diagnostic information:
-
-1. Open incognito window
-2. Press F12 → **Network** tab
-3. Filter by "WS" (WebSocket)
-4. Navigate to HA URL
-5. Look for `/api/websocket`:
-   - **Expected**: Status `101 Switching Protocols`
-   - **Problem**: `401`, `403`, or timeout
-
-Also check **Console** tab for:
-- `WebSocket connection failed`
-- `Failed to store tokens; Are you in private mode...` (this is expected, not the cause)
-
-### Phase 5: Test Without ha_rebrand (If Needed)
-
-If all above fails, isolate whether ha_rebrand contributes:
-
-1. Go to HA → Settings → Devices & Services
-2. Find `ha_rebrand` integration
-3. Click three dots → **Disable**
-4. Restart Home Assistant
-5. Test incognito mode
-
-If it works without ha_rebrand, the component may need code changes for better proxy compatibility.
-
-### Summary of Fix Priority
-
-| Priority | Action | Location |
-|----------|--------|----------|
-| 1 | Clear custom nginx config | NPM → Advanced tab |
-| 2 | Keep WebSocket Support ON | NPM → Details tab |
-| 3 | Test regular browser | Browser |
-| 4 | Test incognito | Incognito browser |
-| 5 | If needed: Use IP 172.30.32.1 | NPM → Forward Hostname |
-| 6 | If needed: Add timeout config only | NPM → Advanced tab |
-| 7 | If needed: Check CF session settings | Cloudflare Zero Trust |
-| 8 | If needed: Disable ha_rebrand temporarily | HA Settings |
-
----
-
-## Appendix: Reference Commands
-
-### Check Home Assistant Logs
-```bash
-# Via SSH or Terminal add-on
-ha core logs | grep -i "rebrand\|proxy\|forward"
-```
-
-### Check NPM Logs
-```bash
-# NPM container logs
-docker logs addon_core_nginxproxymanager
-```
-
-### Verify Trusted Proxies
-```bash
-# Check what IPs HA sees requests from
-ha core logs | grep "from"
-```
-
-### Test WebSocket Directly
-```javascript
-// In browser console
-const ws = new WebSocket('wss://matt-test-254-ha.woowtech.io/api/websocket');
-ws.onopen = () => console.log('Connected!');
-ws.onerror = (e) => console.error('Error:', e);
-ws.onclose = (e) => console.log('Closed:', e.code, e.reason);
-```
+**Step 1.3: If Hostname Resolution Fails**
+Change Forward Hostname from `homeassistant` to `172.30.32.1`:
+1. Edit proxy host in NPM
+2. Change **Forward Hostname / IP** to `172.30.32.1`
+3. Keep **Forward Port** as `8123`
+4. Save
