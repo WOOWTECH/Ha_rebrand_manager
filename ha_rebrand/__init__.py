@@ -405,9 +405,19 @@ a[href*="openhomefoundation"],
 
                 # Strategy 3: JavaScript backup - monitor and fix if JS recreates SVG
                 # Use _escape_js_string to prevent XSS via JavaScript string injection
+                # Dark mode detection uses: 1) color-scheme meta tag, 2) CSS variable luminance, 3) system preference
                 backup_script = f'''<script>
 (function(){{
   var logo="{_escape_js_string(logo)}",logoD="{_escape_js_string(logo_dark)}",brand="{_escape_js_string(brand_name)}";
+  function isDark(){{
+    var meta=document.querySelector('meta[name="color-scheme"]');
+    if(meta){{var c=meta.getAttribute("content");if(c==="dark")return true;if(c==="light")return false;}}
+    var bg=getComputedStyle(document.documentElement).getPropertyValue("--primary-background-color").trim();
+    if(bg&&bg.startsWith("#")){{var hex=bg.slice(1);if(hex.length===3)hex=hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];var r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);var lum=0.2126*(r/255)+0.7152*(g/255)+0.0722*(b/255);if(lum<0.2)return true;}}
+    if(document.body.classList.contains("dark"))return true;
+    if(window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches)return true;
+    return false;
+  }}
   function fix(){{
     var ls=document.getElementById("ha-launch-screen");
     if(!ls)return;
@@ -420,7 +430,7 @@ a[href*="openhomefoundation"],
       img.alt=brand;
       img.className="ha-rebrand-logo";
       img.style.cssText="display:block;height:120px;width:auto;max-width:200px;object-fit:contain;margin:0 auto;";
-      if(window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches&&logoD){{img.src=logoD;}}
+      if(logoD&&isDark()){{img.src=logoD;}}
       if(svg){{svg.parentNode.insertBefore(img,svg);}}
       else{{ls.insertBefore(img,ls.firstChild);}}
     }}

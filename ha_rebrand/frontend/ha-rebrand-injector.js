@@ -29,6 +29,134 @@
   let cachedHaMain = null;
 
   /**
+   * Parse color string to RGB values
+   * Supports hex (#RGB, #RRGGBB) and rgb/rgba formats
+   */
+  function parseColor(color) {
+    if (!color) return null;
+    color = color.trim();
+
+    // Handle hex colors
+    if (color.startsWith('#')) {
+      const hex = color.slice(1);
+      if (hex.length === 3) {
+        return {
+          r: parseInt(hex[0] + hex[0], 16),
+          g: parseInt(hex[1] + hex[1], 16),
+          b: parseInt(hex[2] + hex[2], 16)
+        };
+      }
+      if (hex.length === 6) {
+        return {
+          r: parseInt(hex.slice(0, 2), 16),
+          g: parseInt(hex.slice(2, 4), 16),
+          b: parseInt(hex.slice(4, 6), 16)
+        };
+      }
+    }
+
+    // Handle rgb/rgba colors
+    const rgbMatch = color.match(/rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (rgbMatch) {
+      return {
+        r: parseInt(rgbMatch[1]),
+        g: parseInt(rgbMatch[2]),
+        b: parseInt(rgbMatch[3])
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Calculate relative luminance of a color
+   * Returns value between 0 (black) and 1 (white)
+   * Uses WCAG 2.1 formula for relative luminance
+   */
+  function getLuminance(rgb) {
+    if (!rgb) return 0.5;
+    const { r, g, b } = rgb;
+    const [rs, gs, bs] = [r, g, b].map(c => {
+      c = c / 255;
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+  }
+
+  /**
+   * Detect if Home Assistant is in dark mode
+   * Uses multiple detection methods in priority order:
+   * 1. color-scheme meta tag (most reliable for HA)
+   * 2. CSS variable luminance check
+   * 3. Legacy class checks
+   * 4. System preference fallback
+   */
+  function isHADarkMode() {
+    // Method 1: Check color-scheme meta tag (most reliable for HA)
+    // HA sets this meta tag based on theme in themes-mixin.ts
+    const colorSchemeMeta = document.querySelector('meta[name="color-scheme"]');
+    if (colorSchemeMeta) {
+      const content = colorSchemeMeta.getAttribute('content');
+      if (content === 'dark') return true;
+      if (content === 'light') return false;
+    }
+
+    // Method 2: Check primary background color luminance
+    const bgColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--primary-background-color').trim();
+    if (bgColor) {
+      const rgb = parseColor(bgColor);
+      if (rgb && getLuminance(rgb) < 0.2) return true;
+    }
+
+    // Method 3: Legacy class checks (for compatibility with other setups)
+    if (document.body.classList.contains('dark')) return true;
+    if (document.documentElement.classList.contains('dark')) return true;
+
+    // Method 4: System preference (fallback)
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) return true;
+
+    return false;
+  }
+
+  /**
+   * Update all rebrand logos based on current theme
+   */
+  function updateLogosForTheme() {
+    if (!config?.logo_dark) return;
+    const isDark = isHADarkMode();
+    const logos = document.querySelectorAll('.ha-rebrand-logo');
+    logos.forEach(logo => {
+      if (logo.tagName === 'IMG') {
+        logo.src = isDark ? config.logo_dark : config.logo;
+      }
+    });
+  }
+
+  /**
+   * Set up theme change observers for dark mode detection
+   * Watches meta tag, body class, and system preference
+   */
+  function setupThemeObservers() {
+    if (window._rebrandThemeObserversSet) return;
+    window._rebrandThemeObserversSet = true;
+
+    // Observer for color-scheme meta tag changes (primary method for HA)
+    const colorSchemeMeta = document.querySelector('meta[name="color-scheme"]');
+    if (colorSchemeMeta) {
+      const metaObserver = new MutationObserver(updateLogosForTheme);
+      metaObserver.observe(colorSchemeMeta, { attributes: true, attributeFilter: ['content'] });
+    }
+
+    // Observer for body class changes (legacy support)
+    const bodyObserver = new MutationObserver(updateLogosForTheme);
+    bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    // Listen for system preference changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateLogosForTheme);
+  }
+
+  /**
    * Fetch rebrand configuration from the API
    * Uses browser caching for better performance - config.json is updated on save
    */
@@ -201,25 +329,11 @@
 
           // Support dark mode logo
           if (config.logo_dark) {
-            const isDarkMode = document.body.classList.contains('dark') ||
-                              window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (isDarkMode) {
+            if (isHADarkMode()) {
               customLogo.src = config.logo_dark;
             }
-
-            // Listen for theme changes (single observer, stored to avoid duplicates)
-            if (!window._rebrandThemeObserver) {
-              window._rebrandThemeObserver = new MutationObserver(() => {
-                const isDark = document.body.classList.contains('dark');
-                const logos = document.querySelectorAll('.ha-rebrand-logo');
-                logos.forEach(logo => {
-                  if (logo.tagName === 'IMG') {
-                    logo.src = isDark ? config.logo_dark : config.logo;
-                  }
-                });
-              });
-              window._rebrandThemeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-            }
+            // Set up theme change observers (handles meta tag, body class, and system preference)
+            setupThemeObservers();
           }
 
           // Insert logo at the beginning of menu (before title)
@@ -446,13 +560,8 @@
           img.style.cssText = 'height: 80px; width: auto; max-width: 200px; object-fit: contain;';
 
           // Support dark mode
-          if (config.logo_dark) {
-            const isDarkMode = document.documentElement.classList.contains('dark') ||
-                              document.body.classList.contains('dark') ||
-                              window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (isDarkMode) {
-              img.src = config.logo_dark;
-            }
+          if (config.logo_dark && isHADarkMode()) {
+            img.src = config.logo_dark;
           }
 
           svg.parentElement.insertBefore(img, svg);
@@ -476,13 +585,8 @@
           img.className = 'ha-rebrand-login-logo';
           img.style.cssText = 'height: 80px; width: auto; max-width: 200px; object-fit: contain; display: block; margin: 0 auto 16px;';
 
-          if (config.logo_dark) {
-            const isDarkMode = document.documentElement.classList.contains('dark') ||
-                              document.body.classList.contains('dark') ||
-                              window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (isDarkMode) {
-              img.src = config.logo_dark;
-            }
+          if (config.logo_dark && isHADarkMode()) {
+            img.src = config.logo_dark;
           }
 
           existingLogo.parentElement.insertBefore(img, existingLogo);
@@ -518,13 +622,8 @@
       img.style.cssText = 'height: 120px; width: auto; max-width: 240px; object-fit: contain;';
 
       // Support dark mode
-      if (config.logo_dark) {
-        const isDarkMode = document.documentElement.classList.contains('dark') ||
-                          document.body.classList.contains('dark') ||
-                          window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (isDarkMode) {
-          img.src = config.logo_dark;
-        }
+      if (config.logo_dark && isHADarkMode()) {
+        img.src = config.logo_dark;
       }
 
       haSvgIcon.parentElement.insertBefore(img, haSvgIcon);
