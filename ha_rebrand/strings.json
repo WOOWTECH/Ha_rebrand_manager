@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "HA Rebrand",
-        "description": "Welcome to HA Rebrand! This integration allows you to customize Home Assistant's branding including logos, titles, and text replacements.\n\nClick Submit to install. After installation, configure settings via the Rebrand panel in the sidebar."
+        "description": "Welcome to HA Rebrand! This integration allows you to customize Home Assistant's branding including logos and titles.\n\nClick Submit to install. After installation, configure settings via the Rebrand panel in the sidebar."
       }
     },
     "abort": {

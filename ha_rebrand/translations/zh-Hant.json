@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "HA Rebrand",
-        "description": "歡迎使用 HA Rebrand！此整合讓您可以自訂 Home Assistant 的品牌，包括 Logo、標題和文字替換。\n\n點擊「提交」安裝。安裝後，請透過側邊欄的「Rebrand」面板進行設定。"
+        "description": "歡迎使用 HA Rebrand！此整合讓您可以自訂 Home Assistant 的品牌，包括 Logo 和標題。\n\n點擊「提交」安裝。安裝後，請透過側邊欄的「Rebrand」面板進行設定。"
       }
     },
     "abort": {
