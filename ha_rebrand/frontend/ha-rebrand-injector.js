@@ -352,143 +352,6 @@
     return true;
   }
 
-  // Cache for pre-compiled replacement patterns (performance optimization)
-  let compiledReplacements = null;
-
-  /**
-   * Escape special regex characters in a string
-   */
-  function escapeRegExp(string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
-
-  /**
-   * Compile replacement rules into regex patterns (called once)
-   */
-  function compileReplacements() {
-    if (!config?.replacements || Object.keys(config.replacements).length === 0) {
-      compiledReplacements = null;
-      return;
-    }
-    compiledReplacements = Object.entries(config.replacements).map(([search, replace]) => ({
-      pattern: new RegExp(escapeRegExp(search), 'g'),
-      replacement: replace
-    }));
-  }
-
-  /**
-   * Replace text throughout the page using replacements config
-   * Optimized: Uses pre-compiled regex and limits traversal scope
-   */
-  function replaceText() {
-    if (!compiledReplacements || compiledReplacements.length === 0) return;
-
-    // Limit traversal to main content area for better performance
-    const rootElement = document.querySelector('home-assistant-main') ||
-                       document.querySelector('ha-panel-lovelace') ||
-                       document.body;
-
-    const walker = document.createTreeWalker(
-      rootElement,
-      NodeFilter.SHOW_TEXT,
-      null,
-      false
-    );
-
-    const nodesToUpdate = [];
-    let node;
-
-    while (node = walker.nextNode()) {
-      const text = node.textContent;
-      let newText = text;
-      let changed = false;
-
-      // Use pre-compiled regex for faster replacement
-      for (const { pattern, replacement } of compiledReplacements) {
-        const result = newText.replace(pattern, replacement);
-        if (result !== newText) {
-          newText = result;
-          changed = true;
-        }
-      }
-
-      if (changed) {
-        nodesToUpdate.push({ node, newText });
-      }
-    }
-
-    // Apply updates in batch
-    nodesToUpdate.forEach(({ node, newText }) => {
-      node.textContent = newText;
-    });
-
-    // Also check shadow DOMs of custom elements (with limited scope)
-    replaceShadowDOMText(rootElement);
-  }
-
-  // Maximum depth for shadow DOM traversal to prevent stack overflow
-  const MAX_SHADOW_DOM_DEPTH = 10;
-
-  /**
-   * Recursively replace text in shadow DOMs
-   * IMPORTANT: Must exit early if no replacements to prevent infinite DOM traversal
-   * @param {ShadowRoot|Element} root - The root element to start traversal from
-   * @param {number} depth - Current recursion depth (defaults to 0)
-   */
-  function replaceShadowDOMText(root, depth = 0) {
-    // Exit early if no replacements or empty replacements object
-    // This prevents expensive DOM traversal when there's nothing to replace
-    if (!config?.replacements || Object.keys(config.replacements).length === 0) return;
-    if (!compiledReplacements || compiledReplacements.length === 0) return;
-
-    // Prevent infinite recursion / stack overflow with deep shadow DOM nesting
-    if (depth >= MAX_SHADOW_DOM_DEPTH) {
-      console.warn('[HA Rebrand] Max shadow DOM depth reached, stopping traversal');
-      return;
-    }
-
-    const elements = root.querySelectorAll('*');
-    elements.forEach(el => {
-      if (el.shadowRoot) {
-        const walker = document.createTreeWalker(
-          el.shadowRoot,
-          NodeFilter.SHOW_TEXT,
-          null,
-          false
-        );
-
-        let node;
-        const nodesToUpdate = [];
-        while (node = walker.nextNode()) {
-          let text = node.textContent;
-          let newText = text;
-          let changed = false;
-
-          // Use pre-compiled regex for faster replacement (consistent with replaceText())
-          for (const { pattern, replacement } of compiledReplacements) {
-            const result = newText.replace(pattern, replacement);
-            if (result !== newText) {
-              newText = result;
-              changed = true;
-            }
-          }
-
-          if (changed) {
-            nodesToUpdate.push({ node, newText });
-          }
-        }
-
-        // Apply updates in batch (avoids DOM mutation during traversal)
-        nodesToUpdate.forEach(({ node, newText }) => {
-          node.textContent = newText;
-        });
-
-        // Recurse into shadow DOM with incremented depth
-        replaceShadowDOMText(el.shadowRoot, depth + 1);
-      }
-    });
-  }
-
   /**
    * Replace HA logo in various locations
    * Note: Loading screen logo is now handled by server-side HTML injection in __init__.py
@@ -712,9 +575,6 @@
       replaceDocumentTitle();
       const sidebarReplaced = replaceSidebar();
       replaceLogos();
-      // replaceText() and replaceShadowDOMText() now have proper early-exit checks
-      // to prevent expensive DOM traversal when no replacements are configured
-      replaceText();
       applyPrimaryColor();
 
       return sidebarReplaced;
@@ -893,9 +753,6 @@
 
     // Reset retry count on success
     configRetryCount = 0;
-
-    // Compile replacement patterns once for better performance
-    compileReplacements();
 
     // Wait for sidebar using event-based approach (replaces 30-second polling)
     await waitForSidebar();
