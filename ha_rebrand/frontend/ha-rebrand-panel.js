@@ -23,8 +23,6 @@ class HaRebrandPanel extends LitElement {
       _uploadingLogoDark: { type: Boolean },
       _uploadingFavicon: { type: Boolean },
       _message: { type: Object },
-      _newReplaceKey: { type: String },
-      _newReplaceValue: { type: String },
     };
   }
 
@@ -268,76 +266,6 @@ class HaRebrandPanel extends LitElement {
         display: none;
       }
 
-      .replacements-list {
-        border: 1px solid var(--divider-color);
-        border-radius: 8px;
-        overflow: hidden;
-      }
-
-      .replacement-item {
-        display: flex;
-        align-items: center;
-        padding: 12px 16px;
-        border-bottom: 1px solid var(--divider-color);
-        gap: 12px;
-      }
-
-      .replacement-item:last-child {
-        border-bottom: none;
-      }
-
-      .replacement-item .key {
-        flex: 1;
-        font-weight: 500;
-        color: var(--primary-text-color);
-      }
-
-      .replacement-item .arrow {
-        color: var(--secondary-text-color);
-      }
-
-      .replacement-item .value {
-        flex: 1;
-        color: var(--secondary-text-color);
-      }
-
-      .replacement-item .delete-btn {
-        padding: 4px;
-        border: none;
-        background: none;
-        color: var(--secondary-text-color);
-        cursor: pointer;
-        border-radius: 4px;
-      }
-
-      .replacement-item .delete-btn:hover {
-        background: var(--error-color);
-        color: white;
-      }
-
-      .add-replacement {
-        display: flex;
-        gap: 8px;
-        padding: 12px 16px;
-        background: var(--secondary-background-color);
-        align-items: center;
-      }
-
-      .add-replacement input {
-        flex: 1;
-        padding: 8px 12px;
-        border: 1px solid var(--divider-color);
-        border-radius: 6px;
-        font-size: 14px;
-        background: var(--card-background-color);
-        color: var(--primary-text-color);
-      }
-
-      .add-replacement input:focus {
-        outline: none;
-        border-color: var(--primary-color);
-      }
-
       .message {
         padding: 12px 16px;
         border-radius: 8px;
@@ -493,8 +421,6 @@ class HaRebrandPanel extends LitElement {
     this._uploadingLogoDark = false;
     this._uploadingFavicon = false;
     this._message = null;
-    this._newReplaceKey = "";
-    this._newReplaceValue = "";
   }
 
   _toggleSidebar() {
@@ -659,23 +585,6 @@ class HaRebrandPanel extends LitElement {
 
   _updateConfig(field, value) {
     this._config = { ...this._config, [field]: value };
-  }
-
-  _addReplacement() {
-    if (!this._newReplaceKey.trim() || !this._newReplaceValue.trim()) return;
-
-    const replacements = { ...this._config.replacements };
-    replacements[this._newReplaceKey.trim()] = this._newReplaceValue.trim();
-
-    this._config = { ...this._config, replacements };
-    this._newReplaceKey = "";
-    this._newReplaceValue = "";
-  }
-
-  _removeReplacement(key) {
-    const replacements = { ...this._config.replacements };
-    delete replacements[key];
-    this._config = { ...this._config, replacements };
   }
 
   _showMessage(type, text) {
@@ -939,54 +848,6 @@ class HaRebrandPanel extends LitElement {
                   <p class="current-path">Current: ${this._config.favicon}</p>
                 ` : ""}
               </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Text Replacements Card -->
-        <div class="card">
-          <h2 class="card-title">
-            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12.87,15.07L10.33,12.56L10.36,12.53C12.1,10.59 13.34,8.36 14.07,6H17V4H10V2H8V4H1V6H12.17C11.5,7.92 10.44,9.75 9,11.35C8.07,10.32 7.3,9.19 6.69,8H4.69C5.42,9.63 6.42,11.17 7.67,12.56L2.58,17.58L4,19L9,14L12.11,17.11L12.87,15.07M18.5,10H16.5L12,22H14L15.12,19H19.87L21,22H23L18.5,10M15.88,17L17.5,12.67L19.12,17H15.88Z"/></svg>
-            Text Replacements
-          </h2>
-
-          <p class="hint" style="margin-bottom: 16px;">
-            <strong>功能說明：</strong>在整個 Home Assistant 介面中搜尋並替換指定文字。<br>
-            <strong>常見用途：</strong>將「Home Assistant」替換為您的品牌名稱。<br>
-            <strong>注意事項：</strong>文字替換會套用到所有頁面，包括 Shadow DOM 內的內容。
-          </p>
-
-          <div class="replacements-list">
-            ${Object.entries(this._config.replacements).map(([key, value]) => html`
-              <div class="replacement-item">
-                <span class="key">${key}</span>
-                <span class="arrow">→</span>
-                <span class="value">${value}</span>
-                <button class="delete-btn" @click=${() => this._removeReplacement(key)}>
-                  <svg viewBox="0 0 24 24" style="width: 18px; height: 18px;"><path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/></svg>
-                </button>
-              </div>
-            `)}
-
-            <div class="add-replacement">
-              <input
-                type="text"
-                placeholder="Search text (e.g., Home Assistant)"
-                .value=${this._newReplaceKey}
-                @input=${(e) => this._newReplaceKey = e.target.value}
-                @keydown=${(e) => e.key === "Enter" && this._addReplacement()}
-              />
-              <span style="color: var(--secondary-text-color);">→</span>
-              <input
-                type="text"
-                placeholder="Replace with"
-                .value=${this._newReplaceValue}
-                @input=${(e) => this._newReplaceValue = e.target.value}
-                @keydown=${(e) => e.key === "Enter" && this._addReplacement()}
-              />
-              <button class="btn btn-primary btn-small" @click=${this._addReplacement}>
-                Add
-              </button>
             </div>
           </div>
         </div>
