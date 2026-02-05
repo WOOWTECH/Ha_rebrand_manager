@@ -19,13 +19,44 @@ A Home Assistant custom component that allows you to customize the branding of y
 
 ### HACS (Recommended)
 
-1. Open HACS in your Home Assistant instance
-2. Click on "Integrations"
-3. Click the three dots in the top right corner and select "Custom repositories"
-4. Add this repository URL: `https://github.com/WOOWTECH/Ha_rebrand_manager`
-5. Select "Integration" as the category
-6. Click "Add" then find and install "HA Rebrand"
-7. Restart Home Assistant
+> **Prerequisites:** [HACS](https://hacs.xyz/) must be installed in your Home Assistant instance.
+
+#### Step 1: Add Custom Repository
+
+1. Open your Home Assistant web interface
+2. Click on **HACS** in the sidebar
+3. Click on **Integrations** tab
+4. Click the **three dots menu (⋮)** in the top right corner
+5. Select **Custom repositories**
+
+#### Step 2: Enter Repository Information
+
+1. In the **Repository** field, paste:
+   ```
+   https://github.com/WOOWTECH/Ha_rebrand_manager
+   ```
+2. In the **Category** dropdown, select **Integration**
+3. Click **Add**
+4. Close the dialog
+
+#### Step 3: Download the Integration
+
+1. Click **+ Explore & Download Repositories** button (bottom right)
+2. Search for **HA Rebrand**
+3. Click on it to open the details
+4. Click **Download** button
+5. Confirm the download in the popup
+
+#### Step 4: Restart and Configure
+
+1. Go to **Settings** → **System** → **Restart**
+2. Wait for Home Assistant to fully restart
+3. Go to **Settings** → **Devices & Services**
+4. Click **+ Add Integration** (bottom right)
+5. Search for **HA Rebrand** and select it
+6. Complete the setup wizard
+
+After installation, click **Rebrand** in the sidebar to configure your branding.
 
 ### Manual Installation
 
