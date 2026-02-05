@@ -529,6 +529,206 @@
   }
 
   /**
+   * Replace favicon-192x192.png logos in dialogs (e.g., QR code dialog, tag detail)
+   * Searches through shadow DOMs to find img elements with the default HA favicon
+   */
+  function replaceDialogLogos() {
+    if (!config?.logo) return;
+
+    // Find all img elements with favicon-192x192.png across the document
+    const logoImgs = document.querySelectorAll('img[src*="favicon-192x192.png"]');
+    logoImgs.forEach(img => {
+      if (!img.classList.contains('ha-rebrand-dialog-logo')) {
+        img.classList.add('ha-rebrand-dialog-logo');
+        img.src = config.logo;
+        img.alt = config.brand_name || 'Logo';
+        if (config.logo_dark && isHADarkMode()) {
+          img.src = config.logo_dark;
+        }
+      }
+    });
+
+    // Search through shadow DOMs of common dialog elements
+    const dialogSelectors = [
+      'ha-dialog',
+      'ha-more-info-dialog',
+      'ha-long-lived-access-token-dialog',
+      'ha-config-dashboard',
+      'home-assistant',
+    ];
+
+    dialogSelectors.forEach(selector => {
+      const elements = document.querySelectorAll(selector);
+      elements.forEach(el => {
+        searchAndReplaceLogosInShadow(el);
+      });
+    });
+  }
+
+  /**
+   * Recursively search through shadow DOM and replace favicon logos
+   */
+  function searchAndReplaceLogosInShadow(element, depth = 0) {
+    if (!element || depth > 10) return; // Prevent infinite recursion
+
+    // Check the element itself and its light DOM
+    const lightDomImgs = element.querySelectorAll?.('img[src*="favicon-192x192.png"]');
+    if (lightDomImgs) {
+      lightDomImgs.forEach(img => {
+        if (!img.classList.contains('ha-rebrand-dialog-logo')) {
+          img.classList.add('ha-rebrand-dialog-logo');
+          img.src = config.logo;
+          img.alt = config.brand_name || 'Logo';
+          if (config.logo_dark && isHADarkMode()) {
+            img.src = config.logo_dark;
+          }
+        }
+      });
+    }
+
+    // Check shadow root if present
+    const shadowRoot = element.shadowRoot;
+    if (shadowRoot) {
+      const shadowImgs = shadowRoot.querySelectorAll('img[src*="favicon-192x192.png"]');
+      shadowImgs.forEach(img => {
+        if (!img.classList.contains('ha-rebrand-dialog-logo')) {
+          img.classList.add('ha-rebrand-dialog-logo');
+          img.src = config.logo;
+          img.alt = config.brand_name || 'Logo';
+          if (config.logo_dark && isHADarkMode()) {
+            img.src = config.logo_dark;
+          }
+        }
+      });
+
+      // Recursively check children in shadow DOM
+      const shadowChildren = shadowRoot.querySelectorAll('*');
+      shadowChildren.forEach(child => {
+        if (child.shadowRoot) {
+          searchAndReplaceLogosInShadow(child, depth + 1);
+        }
+      });
+    }
+  }
+
+  /**
+   * Replace the logo in the center of QR codes
+   * QR code dialogs typically use a canvas with the HA logo overlaid in the center
+   */
+  function replaceQRCodeLogos() {
+    if (!config?.logo) return;
+
+    // Find QR code containers (typically in access token dialogs)
+    const qrContainers = document.querySelectorAll('.qr-code-container, [class*="qr"], ha-qr-code');
+
+    qrContainers.forEach(container => {
+      // Look for canvas elements (QR codes are usually rendered as canvas)
+      const canvases = container.querySelectorAll('canvas');
+      canvases.forEach(canvas => {
+        // Check if there's already an overlay logo
+        const parent = canvas.parentElement;
+        if (parent && !parent.querySelector('.ha-rebrand-qr-logo')) {
+          // Create an overlay logo in the center of the QR code
+          const logoOverlay = document.createElement('img');
+          logoOverlay.className = 'ha-rebrand-qr-logo';
+          logoOverlay.src = config.logo;
+          logoOverlay.alt = config.brand_name || 'Logo';
+          logoOverlay.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20%;
+            height: auto;
+            max-width: 48px;
+            background: white;
+            border-radius: 4px;
+            padding: 2px;
+          `;
+
+          if (config.logo_dark && isHADarkMode()) {
+            logoOverlay.src = config.logo_dark;
+          }
+
+          // Ensure parent has relative positioning for absolute child
+          if (getComputedStyle(parent).position === 'static') {
+            parent.style.position = 'relative';
+          }
+
+          parent.appendChild(logoOverlay);
+        }
+      });
+
+      // Also check shadow DOM of QR code elements
+      if (container.shadowRoot) {
+        searchAndReplaceLogosInShadow(container);
+      }
+    });
+  }
+
+  let dialogObserver = null;
+  let dialogObserverTimeout = null;
+
+  /**
+   * Watch for dialog openings and apply branding
+   * Uses MutationObserver to detect when dialogs are added to the DOM
+   */
+  function watchDialogs() {
+    // Clean up existing observer if any
+    if (dialogObserver) {
+      dialogObserver.disconnect();
+      dialogObserver = null;
+    }
+    if (dialogObserverTimeout) {
+      clearTimeout(dialogObserverTimeout);
+      dialogObserverTimeout = null;
+    }
+
+    let debounceTimer = null;
+
+    dialogObserver = new MutationObserver((mutations) => {
+      // Check if any dialog-related elements were added
+      const hasDialogChanges = mutations.some(mutation => {
+        if (mutation.type !== 'childList' || mutation.addedNodes.length === 0) {
+          return false;
+        }
+        for (const node of mutation.addedNodes) {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const tagName = node.tagName?.toLowerCase() || '';
+            // Check for dialog elements or elements that might contain dialogs
+            if (tagName.includes('dialog') || tagName === 'ha-more-info-dialog' ||
+                tagName === 'ha-config-dashboard' || node.querySelector?.('ha-dialog, [class*="dialog"]')) {
+              return true;
+            }
+          }
+        }
+        return false;
+      });
+
+      if (!hasDialogChanges) return;
+
+      // Debounce to avoid excessive calls
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        replaceDialogLogos();
+        replaceQRCodeLogos();
+      }, 100);
+    });
+
+    // Observe the entire document body for dialog additions
+    dialogObserver.observe(document.body, { childList: true, subtree: true });
+
+    // Disconnect after 5 minutes to prevent memory leaks
+    dialogObserverTimeout = setTimeout(() => {
+      if (dialogObserver) {
+        dialogObserver.disconnect();
+        dialogObserver = null;
+        console.log('[HA Rebrand] Dialog observer disconnected after timeout');
+      }
+    }, OBSERVER_TIMEOUT);
+  }
+
+  /**
    * Apply primary color to the entire interface
    * This changes --primary-color CSS variable which affects buttons, links, etc.
    */
@@ -576,6 +776,8 @@
       const sidebarReplaced = replaceSidebar();
       replaceLogos();
       applyPrimaryColor();
+      replaceDialogLogos();
+      replaceQRCodeLogos();
 
       return sidebarReplaced;
     } finally {
@@ -759,6 +961,9 @@
 
     // Set up mutation observer for dynamic content
     setupMutationObserver();
+
+    // Set up dialog observer for dialog logo replacement
+    watchDialogs();
   }
 
   // Start when DOM is ready

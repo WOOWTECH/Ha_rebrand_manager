@@ -174,13 +174,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) ->
     # First, we need to remove the existing static route for /auth/authorize
     # since Home Assistant's frontend component registers it as a static file
     # Only register custom view if we successfully removed the original
-    if _unregister_authorize_static_path(hass):
+    if _unregister_static_path(hass, "/auth/authorize"):
         hass.http.register_view(RebrandAuthorizeView(hass))
         _LOGGER.info("HA Rebrand: Registered RebrandAuthorizeView for /auth/authorize")
     else:
         _LOGGER.warning(
             "HA Rebrand: Could not replace authorize view - "
             "login page branding will use JavaScript fallback only"
+        )
+
+    # Register custom onboarding view to replace onboarding page logo
+    if _unregister_static_path(hass, "/onboarding"):
+        hass.http.register_view(RebrandOnboardingView(hass))
+        _LOGGER.info("HA Rebrand: Registered RebrandOnboardingView for /onboarding")
+    else:
+        _LOGGER.debug(
+            "HA Rebrand: Could not replace onboarding view - "
+            "onboarding page branding will use JavaScript fallback only"
         )
 
     # Register panel (only once)
@@ -309,8 +319,12 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
     _patch_index_view(hass)
 
 
-def _unregister_authorize_static_path(hass: HomeAssistant) -> bool:
-    """Remove the existing /auth/authorize static path so we can register our custom view.
+def _unregister_static_path(hass: HomeAssistant, path: str) -> bool:
+    """Remove an existing static path so we can register a custom view.
+
+    Args:
+        hass: Home Assistant instance
+        path: The URL path to unregister (e.g., "/auth/authorize", "/onboarding")
 
     Returns True if successfully removed, False otherwise.
     """
@@ -318,23 +332,20 @@ def _unregister_authorize_static_path(hass: HomeAssistant) -> bool:
         app = hass.http.app
         router = app.router
 
-        # Find and remove the resource for /auth/authorize
+        # Find and remove the resource for the given path
         resources_to_remove = []
         for resource in router.resources():
-            # Check if this resource matches /auth/authorize
-            if hasattr(resource, "_path") and resource._path == "/auth/authorize":
+            # Check if this resource matches the path
+            if hasattr(resource, "_path") and resource._path == path:
                 resources_to_remove.append(resource)
-            elif (
-                hasattr(resource, "canonical")
-                and resource.canonical == "/auth/authorize"
-            ):
+            elif hasattr(resource, "canonical") and resource.canonical == path:
                 resources_to_remove.append(resource)
             elif hasattr(resource, "url_for"):
                 try:
                     # Try to get the URL - note: StaticResource requires filename arg
                     # so we skip those by catching TypeError
                     url = str(resource.url_for())
-                    if url == "/auth/authorize":
+                    if url == path:
                         resources_to_remove.append(resource)
                 except (ValueError, KeyError, TypeError):
                     # url_for() may fail for some resource types
@@ -343,7 +354,7 @@ def _unregister_authorize_static_path(hass: HomeAssistant) -> bool:
 
         if not resources_to_remove:
             _LOGGER.debug(
-                "HA Rebrand: No existing /auth/authorize resource found to remove"
+                "HA Rebrand: No existing %s resource found to remove", path
             )
             return False
 
@@ -356,14 +367,14 @@ def _unregister_authorize_static_path(hass: HomeAssistant) -> bool:
             if hasattr(router, "_resources") and resource in router._resources:
                 router._resources.remove(resource)
             _LOGGER.info(
-                "HA Rebrand: Removed existing /auth/authorize resource: %s", resource
+                "HA Rebrand: Removed existing %s resource: %s", path, resource
             )
 
         return True
 
     except (AttributeError, RuntimeError, TypeError) as e:
         _LOGGER.error(
-            "HA Rebrand: Failed to remove /auth/authorize route: %s", e
+            "HA Rebrand: Failed to remove %s route: %s", path, e
         )
         return False
 
@@ -410,16 +421,21 @@ img[alt*="Open Home Foundation"] {
 
                 # Strategy 1: Enhanced CSS to immediately hide SVG and show img
                 # Multiple selectors to ensure hiding works in all scenarios
+                # Includes body-level SVG selectors for login/logout loading screen
                 # Note: OHF hiding CSS is now injected separately (independent of logo)
                 css_style = """<style>
 #ha-launch-screen svg,
 #ha-launch-screen ha-svg-icon,
-home-assistant svg[viewBox="0 0 240 240"] {
+home-assistant svg[viewBox="0 0 240 240"],
+body svg[viewBox="0 0 240 240"],
+svg[viewBox="0 0 240 240"] {
   display: none !important;
   visibility: hidden !important;
   width: 0 !important;
   height: 0 !important;
   opacity: 0 !important;
+  position: absolute !important;
+  pointer-events: none !important;
 }
 #ha-launch-screen > img,
 #ha-launch-screen img.ha-rebrand-logo {
@@ -772,6 +788,28 @@ class RebrandAuthorizeView(HomeAssistantView):
             f"<title>{html_escape(document_title)}</title>",
         )
 
+        # Inject favicon link tags for login page
+        favicon_url = config.get(CONF_FAVICON)
+        if favicon_url:
+            # Replace existing favicon.ico reference from _header.html.template
+            html_content = html_content.replace(
+                'href="/static/icons/favicon.ico"',
+                f'href="{html_escape(favicon_url)}"',
+            )
+            # Also replace any favicon-192x192.png references
+            html_content = html_content.replace(
+                'href="/static/icons/favicon-192x192.png"',
+                f'href="{html_escape(favicon_url)}"',
+            )
+
+        # Add additional favicon meta tags before </head> for better browser support
+        favicon_to_use = favicon_url or logo_url
+        if favicon_to_use:
+            favicon_meta = f'''<link rel="icon" type="image/png" sizes="192x192" href="{html_escape(favicon_to_use)}" />
+<link rel="icon" type="image/png" sizes="32x32" href="{html_escape(favicon_to_use)}" />
+<link rel="apple-touch-icon" href="{html_escape(logo_url or favicon_to_use)}" />'''
+            html_content = html_content.replace("</head>", favicon_meta + "\n</head>")
+
         # Inject primary color CSS for login page styling
         # Validate color to prevent CSS injection attacks
         primary_color = _validate_color(config.get(CONF_PRIMARY_COLOR))
@@ -807,6 +845,152 @@ mwc-button, ha-button {{
 
         _LOGGER.debug(
             "Serving custom authorize page with logo: %s, primary_color: %s",
+            logo_url,
+            primary_color,
+        )
+
+        return web.Response(
+            text=html_content,
+            content_type="text/html",
+            charset="utf-8",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
+
+class RebrandOnboardingView(HomeAssistantView):
+    """Custom onboarding view that serves modified onboarding.html with custom branding."""
+
+    url = "/onboarding"
+    name = "api:ha_rebrand:onboarding"
+    requires_auth = False  # Must be accessible without auth
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the view."""
+        self.hass = hass
+        self._onboarding_html = None
+
+    def _read_onboarding_html(self) -> str | None:
+        """Read onboarding.html from hass_frontend package."""
+        try:
+            import hass_frontend
+
+            frontend_path = Path(hass_frontend.__file__).parent
+            onboarding_path = frontend_path / "onboarding.html"
+            if onboarding_path.exists():
+                return onboarding_path.read_text("utf-8")
+        except ImportError:
+            _LOGGER.warning("Could not import hass_frontend package")
+        except OSError as e:
+            _LOGGER.warning("Error reading onboarding.html: %s", e)
+        return None
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Serve modified onboarding.html with custom branding."""
+        # Read original HTML (cache it for performance)
+        if self._onboarding_html is None:
+            self._onboarding_html = await self.hass.async_add_executor_job(
+                self._read_onboarding_html
+            )
+
+        if self._onboarding_html is None:
+            _LOGGER.error(
+                "Could not read onboarding.html from hass_frontend - "
+                "serving minimal fallback page"
+            )
+            # Return a simple redirect page that won't be cached by proxies
+            return web.Response(
+                text=(
+                    '<html><head><meta http-equiv="refresh" content="0;url=/">'
+                    "</head><body>Redirecting...</body></html>"
+                ),
+                content_type="text/html",
+                status=200,
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                },
+            )
+
+        html_content = self._onboarding_html
+
+        # Get custom branding config
+        config = self.hass.data.get(DOMAIN, {})
+        logo_url = config.get(CONF_LOGO)
+        brand_name = config.get(CONF_BRAND_NAME) or DEFAULT_BRAND_NAME
+        document_title = config.get(CONF_DOCUMENT_TITLE) or brand_name
+
+        # Replace the logo image src if we have a custom logo
+        if logo_url:
+            html_content = html_content.replace(
+                'src="/static/icons/favicon-192x192.png"',
+                f'src="{html_escape(logo_url)}"',
+            )
+
+        # Replace alt text
+        html_content = html_content.replace(
+            'alt="Home Assistant"', f'alt="{html_escape(brand_name)}"'
+        )
+
+        # Replace page title
+        html_content = html_content.replace(
+            "<title>Home Assistant</title>",
+            f"<title>{html_escape(document_title)}</title>",
+        )
+
+        # Inject favicon link tags
+        favicon_url = config.get(CONF_FAVICON)
+        if favicon_url:
+            html_content = html_content.replace(
+                'href="/static/icons/favicon.ico"',
+                f'href="{html_escape(favicon_url)}"',
+            )
+            html_content = html_content.replace(
+                'href="/static/icons/favicon-192x192.png"',
+                f'href="{html_escape(favicon_url)}"',
+            )
+
+        # Add additional favicon meta tags before </head>
+        favicon_to_use = favicon_url or logo_url
+        if favicon_to_use:
+            favicon_meta = f'''<link rel="icon" type="image/png" sizes="192x192" href="{html_escape(favicon_to_use)}" />
+<link rel="icon" type="image/png" sizes="32x32" href="{html_escape(favicon_to_use)}" />
+<link rel="apple-touch-icon" href="{html_escape(logo_url or favicon_to_use)}" />'''
+            html_content = html_content.replace("</head>", favicon_meta + "\n</head>")
+
+        # Inject primary color CSS for onboarding page styling
+        primary_color = _validate_color(config.get(CONF_PRIMARY_COLOR))
+        if primary_color:
+            color_style = f"""<style>
+:root, html {{
+  --primary-color: {primary_color} !important;
+  --light-primary-color: {primary_color}40 !important;
+  --dark-primary-color: {primary_color} !important;
+  --mdc-theme-primary: {primary_color} !important;
+  --ha-color-fill-primary-loud-resting: {primary_color} !important;
+  --ha-color-fill-primary-loud-active: {primary_color} !important;
+  --ha-color-fill-primary-loud-hover: {primary_color} !important;
+}}
+ha-onboarding {{
+  --primary-color: {primary_color} !important;
+  --mdc-theme-primary: {primary_color} !important;
+  --mdc-theme-on-primary: #ffffff !important;
+}}
+mwc-button, ha-button {{
+  --mdc-theme-primary: {primary_color} !important;
+  --mdc-theme-on-primary: #ffffff !important;
+  --ha-color-fill-primary-loud-resting: {primary_color} !important;
+}}
+</style>"""
+            html_content = html_content.replace("</head>", color_style + "</head>")
+
+        _LOGGER.debug(
+            "Serving custom onboarding page with logo: %s, primary_color: %s",
             logo_url,
             primary_color,
         )
