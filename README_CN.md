@@ -22,15 +22,17 @@
 1. 在 Home Assistant 中開啟 HACS
 2. 點擊「整合」
 3. 點擊右上角的三個點，選擇「自訂儲存庫」
-4. 新增本儲存庫 URL，類別選擇「Integration」
-5. 點擊「安裝」
-6. 重新啟動 Home Assistant
+4. 新增儲存庫 URL：`https://github.com/woowtech/ha_rebrand`
+5. 類別選擇「Integration」
+6. 點擊「新增」，然後找到並安裝「HA Rebrand」
+7. 重新啟動 Home Assistant
 
 ### 手動安裝
 
-1. 將 `ha_rebrand` 資料夾複製到您的 `custom_components` 目錄
-2. 重新啟動 Home Assistant
-3. 前往 設定 → 裝置與服務 → 新增整合 → 搜尋 "HA Rebrand"
+1. 下載本儲存庫
+2. 將 `custom_components/ha_rebrand` 資料夾複製到您的 Home Assistant `config/custom_components/` 目錄
+3. 重新啟動 Home Assistant
+4. 前往 設定 → 裝置與服務 → 新增整合 → 搜尋 "HA Rebrand"
 
 ## 設定方法
 

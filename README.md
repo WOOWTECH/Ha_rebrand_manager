@@ -22,15 +22,17 @@ A Home Assistant custom component that allows you to customize the branding of y
 1. Open HACS in your Home Assistant instance
 2. Click on "Integrations"
 3. Click the three dots in the top right corner and select "Custom repositories"
-4. Add this repository URL and select "Integration" as the category
-5. Click "Install"
-6. Restart Home Assistant
+4. Add this repository URL: `https://github.com/woowtech/ha_rebrand`
+5. Select "Integration" as the category
+6. Click "Add" then find and install "HA Rebrand"
+7. Restart Home Assistant
 
 ### Manual Installation
 
-1. Copy the `ha_rebrand` folder to your `custom_components` directory
-2. Restart Home Assistant
-3. Go to Settings → Devices & Services → Add Integration → Search "HA Rebrand"
+1. Download this repository
+2. Copy the `custom_components/ha_rebrand` folder to your Home Assistant's `config/custom_components/` directory
+3. Restart Home Assistant
+4. Go to Settings → Devices & Services → Add Integration → Search "HA Rebrand"
 
 ## Configuration
 

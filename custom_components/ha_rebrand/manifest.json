@@ -9,6 +9,6 @@
   "issue_tracker": "https://github.com/woowtech/ha_rebrand/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "2.1.1",
+  "version": "1.0.0",
   "dependencies": ["frontend", "http"]
 }
