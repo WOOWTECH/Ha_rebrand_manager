@@ -78,23 +78,27 @@
 3. 點擊「套用變更」測試設定
 4. 點擊「儲存到檔案」建立永久設定
 
-### 方式二：手動 YAML 設定
+### 方式二：YAML 設定檔
 
-在 `configuration.yaml` 中新增以下內容：
+在管理面板中點擊「儲存到檔案」時，會在設定目錄中建立 `ha_rebrand.yaml` 檔案。此檔案會在啟動時載入以保留您的設定。
+
+您也可以手動建立或編輯此檔案：
 
 ```yaml
-ha_rebrand:
-  system_name: "我的智慧家居"
-  logo: "/local/my-logo.svg"
-  logo_dark: "/local/my-logo-dark.svg"  # 可選
-  favicon: "/local/favicon.ico"
-  sidebar_text: "我的智慧家居"
-  browser_tab_title: "我的智慧家居"
-  primary_color: "#6183fc"  # 可選：自訂主題色
-  hide_open_home_foundation: true  # 可選：隱藏 OHF 標誌
+# /config/ha_rebrand.yaml
+system_name: "我的智慧家居"
+logo: "/local/my-logo.svg"
+logo_dark: "/local/my-logo-dark.svg"  # 可選
+favicon: "/local/favicon.ico"
+sidebar_text: "我的智慧家居"
+browser_tab_title: "我的智慧家居"
+primary_color: "#6183fc"  # 可選：自訂主題色
+hide_open_home_foundation: true  # 可選：隱藏 OHF 標誌
 ```
 
-**注意：** 注入腳本會自動載入，無需手動設定 `frontend.extra_module_url`。
+**注意：**
+- 管理面板將執行時設定儲存在 `www/ha_rebrand/config.json`
+- 注入腳本會自動載入，無需手動設定 `frontend.extra_module_url`
 
 ## 設定選項
 
@@ -106,27 +110,20 @@ ha_rebrand:
 | `favicon` | 字串 | null | 網站圖示路徑 |
 | `sidebar_text` | 字串 | system_name | 顯示在側邊欄頂部的文字 |
 | `browser_tab_title` | 字串 | system_name | 顯示在瀏覽器分頁中的名稱 |
-| `primary_color` | 字串 | null | 按鈕和 UI 的主題色（十六進位格式：`#RRGGBB`） |
+| `primary_color` | 字串 | null | 按鈕和 UI 的主題色（十六進位格式：`#RGB`、`#RRGGBB` 或 `#RRGGBBAA`） |
 | `hide_open_home_foundation` | 布林 | true | 隱藏 Open Home Foundation 標誌 |
-
-### 從舊版本升級
-
-如果您從舊版本升級，舊的設定鍵會自動遷移：
-- `brand_name` → `system_name`
-- `sidebar_title` → `sidebar_text`
-- `document_title` → `browser_tab_title`
-
-舊的設定鍵仍支援向後相容。
 
 ## 檔案路徑說明
 
-將自訂圖片放在 `/config/www/` 目錄中，它們可以透過 `/local/` URL 存取。
+**管理面板上傳：** 透過管理面板上傳的檔案會儲存在 `/config/www/ha_rebrand/`，可透過 `/local/ha_rebrand/` URL 存取。
+
+**手動放置：** 您也可以直接將自訂圖片放在 `/config/www/` 目錄中，它們可透過 `/local/` URL 存取。
 
 範例：
-- 檔案位置：`/config/www/my-logo.svg`
-- 設定寫法：`logo: "/local/my-logo.svg"`
+- 管理面板上傳：`/config/www/ha_rebrand/logo.png` → `/local/ha_rebrand/logo.png`
+- 手動放置：`/config/www/my-logo.svg` → `/local/my-logo.svg`
 
-支援的圖片格式：
+支援的圖片格式（最大 5MB）：
 - PNG
 - JPG/JPEG
 - SVG

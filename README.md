@@ -78,23 +78,27 @@ After installation, click **Rebrand** in the sidebar to configure your branding.
 3. Click "Apply Changes" to test your configuration
 4. Click "Save to File" to create a permanent configuration
 
-### Option 2: Manual YAML Configuration
+### Option 2: YAML Configuration File
 
-Add the following to your `configuration.yaml`:
+When you click "Save to File" in the Admin Panel, a `ha_rebrand.yaml` file is created in your config directory. This file persists your settings and is loaded on startup.
+
+You can also manually create or edit this file:
 
 ```yaml
-ha_rebrand:
-  system_name: "My Smart Home"
-  logo: "/local/my-logo.svg"
-  logo_dark: "/local/my-logo-dark.svg"  # Optional
-  favicon: "/local/favicon.ico"
-  sidebar_text: "My Smart Home"
-  browser_tab_title: "My Smart Home"
-  primary_color: "#6183fc"  # Optional: Custom primary color
-  hide_open_home_foundation: true  # Optional: Hide OHF logo
+# /config/ha_rebrand.yaml
+system_name: "My Smart Home"
+logo: "/local/my-logo.svg"
+logo_dark: "/local/my-logo-dark.svg"  # Optional
+favicon: "/local/favicon.ico"
+sidebar_text: "My Smart Home"
+browser_tab_title: "My Smart Home"
+primary_color: "#6183fc"  # Optional: Custom primary color
+hide_open_home_foundation: true  # Optional: Hide OHF logo
 ```
 
-**Note:** The injector script is automatically loaded - no manual `frontend.extra_module_url` configuration is needed.
+**Note:**
+- The Admin Panel stores runtime configuration in `www/ha_rebrand/config.json`
+- The injector script is automatically loaded - no manual `frontend.extra_module_url` configuration is needed
 
 ## Configuration Options
 
@@ -106,27 +110,20 @@ ha_rebrand:
 | `favicon` | string | null | Path to favicon |
 | `sidebar_text` | string | system_name | The text displayed at the top of the sidebar |
 | `browser_tab_title` | string | system_name | The name shown in browser tabs |
-| `primary_color` | string | null | Primary color for buttons and UI (hex format: `#RRGGBB`) |
+| `primary_color` | string | null | Primary color for buttons and UI (hex format: `#RGB`, `#RRGGBB`, or `#RRGGBBAA`) |
 | `hide_open_home_foundation` | bool | true | Hide the Open Home Foundation logo |
-
-### Migration from Previous Versions
-
-If you're upgrading from a previous version, the old configuration keys will be automatically migrated:
-- `brand_name` → `system_name`
-- `sidebar_title` → `sidebar_text`
-- `document_title` → `browser_tab_title`
-
-The old keys are still supported for backward compatibility.
 
 ## File Paths
 
-Place your custom images in the `/config/www/` directory. They will be accessible via `/local/` URLs.
+**Admin Panel uploads:** Files uploaded via the Admin Panel are stored in `/config/www/ha_rebrand/` and accessible via `/local/ha_rebrand/` URLs.
+
+**Manual placement:** You can also place custom images in `/config/www/` directly. They will be accessible via `/local/` URLs.
 
 Example:
-- File location: `/config/www/my-logo.svg`
-- Configuration: `logo: "/local/my-logo.svg"`
+- Admin Panel upload: `/config/www/ha_rebrand/logo.png` → `/local/ha_rebrand/logo.png`
+- Manual placement: `/config/www/my-logo.svg` → `/local/my-logo.svg`
 
-Supported image formats:
+Supported image formats (max 5MB):
 - PNG
 - JPG/JPEG
 - SVG
