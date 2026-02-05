@@ -843,6 +843,78 @@ mwc-button, ha-button {{
 </style>"""
             html_content = html_content.replace("</head>", color_style + "</head>")
 
+            # Inject tsParticles color override script for login page particles animation
+            # Uses dual-layer interception: pre-load patch + post-load update fallback
+            particles_script = f"""<script>
+(function(){{
+  var customColor = "{_escape_js_string(primary_color)}";
+  var patched = false;
+
+  function patchLoad() {{
+    if (typeof window.tsParticles === "undefined" || patched) return false;
+    patched = true;
+
+    var origLoad = window.tsParticles.load.bind(window.tsParticles);
+    window.tsParticles.load = function(params) {{
+      if (params && params.options && params.options.particles) {{
+        params.options.particles.color = {{ value: customColor }};
+        if (params.options.particles.links) {{
+          params.options.particles.links.color = {{ value: customColor }};
+        }}
+      }}
+      return origLoad(params);
+    }};
+    return true;
+  }}
+
+  function updateExisting() {{
+    if (typeof window.tsParticles === "undefined") return;
+    try {{
+      var containers = window.tsParticles.dom();
+      for (var i = 0; i < containers.length; i++) {{
+        var c = containers[i];
+        if (c && c.options && c.options.particles) {{
+          c.options.particles.color.value = customColor;
+          if (c.options.particles.links) {{
+            c.options.particles.links.color.value = customColor;
+          }}
+          c.refresh();
+        }}
+      }}
+    }} catch(e) {{}}
+  }}
+
+  // Try immediate patch
+  if (!patchLoad()) {{
+    // Poll for tsParticles availability
+    var iv = setInterval(function() {{
+      if (patchLoad()) {{
+        clearInterval(iv);
+        updateExisting();
+      }}
+    }}, 50);
+    setTimeout(function() {{ clearInterval(iv); }}, 10000);
+  }}
+
+  // Fallback: observe for particles container (wait for body to exist)
+  function setupObserver() {{
+    if (!document.body) {{
+      setTimeout(setupObserver, 10);
+      return;
+    }}
+    var obs = new MutationObserver(function() {{
+      if (document.getElementById("particles") || document.querySelector("canvas.tsparticles-canvas-el")) {{
+        setTimeout(updateExisting, 200);
+      }}
+    }});
+    obs.observe(document.body, {{ childList: true, subtree: true }});
+    setTimeout(function() {{ obs.disconnect(); }}, 15000);
+  }}
+  setupObserver();
+}})();
+</script>"""
+            html_content = html_content.replace("</head>", particles_script + "</head>")
+
         _LOGGER.debug(
             "Serving custom authorize page with logo: %s, primary_color: %s",
             logo_url,
@@ -988,6 +1060,78 @@ mwc-button, ha-button {{
 }}
 </style>"""
             html_content = html_content.replace("</head>", color_style + "</head>")
+
+            # Inject tsParticles color override script for onboarding page particles animation
+            # Uses dual-layer interception: pre-load patch + post-load update fallback
+            particles_script = f"""<script>
+(function(){{
+  var customColor = "{_escape_js_string(primary_color)}";
+  var patched = false;
+
+  function patchLoad() {{
+    if (typeof window.tsParticles === "undefined" || patched) return false;
+    patched = true;
+
+    var origLoad = window.tsParticles.load.bind(window.tsParticles);
+    window.tsParticles.load = function(params) {{
+      if (params && params.options && params.options.particles) {{
+        params.options.particles.color = {{ value: customColor }};
+        if (params.options.particles.links) {{
+          params.options.particles.links.color = {{ value: customColor }};
+        }}
+      }}
+      return origLoad(params);
+    }};
+    return true;
+  }}
+
+  function updateExisting() {{
+    if (typeof window.tsParticles === "undefined") return;
+    try {{
+      var containers = window.tsParticles.dom();
+      for (var i = 0; i < containers.length; i++) {{
+        var c = containers[i];
+        if (c && c.options && c.options.particles) {{
+          c.options.particles.color.value = customColor;
+          if (c.options.particles.links) {{
+            c.options.particles.links.color.value = customColor;
+          }}
+          c.refresh();
+        }}
+      }}
+    }} catch(e) {{}}
+  }}
+
+  // Try immediate patch
+  if (!patchLoad()) {{
+    // Poll for tsParticles availability
+    var iv = setInterval(function() {{
+      if (patchLoad()) {{
+        clearInterval(iv);
+        updateExisting();
+      }}
+    }}, 50);
+    setTimeout(function() {{ clearInterval(iv); }}, 10000);
+  }}
+
+  // Fallback: observe for particles container (wait for body to exist)
+  function setupObserver() {{
+    if (!document.body) {{
+      setTimeout(setupObserver, 10);
+      return;
+    }}
+    var obs = new MutationObserver(function() {{
+      if (document.getElementById("particles") || document.querySelector("canvas.tsparticles-canvas-el")) {{
+        setTimeout(updateExisting, 200);
+      }}
+    }});
+    obs.observe(document.body, {{ childList: true, subtree: true }});
+    setTimeout(function() {{ obs.disconnect(); }}, 15000);
+  }}
+  setupObserver();
+}})();
+</script>"""
+            html_content = html_content.replace("</head>", particles_script + "</head>")
 
         _LOGGER.debug(
             "Serving custom onboarding page with logo: %s, primary_color: %s",
