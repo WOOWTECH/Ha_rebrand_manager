@@ -4,13 +4,12 @@
 
 ## 功能特性
 
-- 用自訂 Logo 替換 Home Assistant 預設標誌（側邊欄、載入畫面、登入頁面）
+- 用自訂 Logo 替換 Home Assistant 預設標誌（側邊欄、載入畫面、登入頁面、初始設定頁面）
 - 自訂網站圖示 (Favicon)
 - 自訂側邊欄標題
 - 自訂瀏覽器標籤頁標題
-- **主題色自訂**（登入頁面按鈕、UI 強調色）
+- **主題色自訂**（登入頁面按鈕、粒子動畫、UI 強調色）
 - **隱藏 Open Home Foundation 標誌**
-- 文字替換對應（例如：「Home Assistant」→「我的智慧家居」）
 - 深色模式 Logo 支援
 - 管理面板支援拖放上傳檔案
 - **安全加固**（防止 XSS 和 CSS 注入攻擊）
@@ -43,7 +42,6 @@
    - 設定品牌名稱和標題
    - 設定主題色（影響按鈕和 UI 強調色）
    - 切換「隱藏 Open Home Foundation」選項
-   - 新增文字替換規則
 3. 點擊「套用變更」測試設定
 4. 點擊「儲存到檔案」建立永久設定
 
@@ -61,9 +59,6 @@ ha_rebrand:
   document_title: "我的智慧家居"
   primary_color: "#6183fc"  # 可選：自訂主題色
   hide_open_home_foundation: true  # 可選：隱藏 OHF 標誌
-  replacements:
-    "Home Assistant": "我的智慧家居"
-    "HA": "智家"
 ```
 
 **注意：** 注入腳本會自動載入，無需手動設定 `frontend.extra_module_url`。
@@ -80,7 +75,6 @@ ha_rebrand:
 | `document_title` | 字串 | brand_name | 瀏覽器標籤頁標題 |
 | `primary_color` | 字串 | null | 按鈕和 UI 的主題色（十六進位格式：`#RRGGBB`） |
 | `hide_open_home_foundation` | 布林 | true | 隱藏 Open Home Foundation 標誌 |
-| `replacements` | 字典 | {} | 文字替換對應 |
 
 ## 檔案路徑說明
 
@@ -107,22 +101,22 @@ ha_rebrand:
 | `logo` | 側邊欄頂部 Logo 區域、載入畫面、登入頁面 |
 | `logo_dark` | 深色模式下的 Logo |
 | `favicon` | 瀏覽器標籤頁圖示 |
-| `primary_color` | 登入頁面按鈕、UI 強調色 |
+| `primary_color` | 登入頁面按鈕、粒子動畫、UI 強調色 |
 | `hide_open_home_foundation` | 隱藏 OHF 標誌 |
-| `replacements` | 整個介面中符合的文字 |
 
 ## 運作原理
 
 1. **後端組件**：管理設定、檔案上傳，並提供 WebSocket/HTTP API
 2. **管理面板**：提供使用者友善的介面來設定品牌
 3. **載入畫面**：修補 Home Assistant 的 IndexView，在頁面載入時立即顯示自訂 Logo
-4. **登入頁面**：自訂授權視圖替換登入頁面 Logo 並套用主題色
-5. **注入腳本**：在每次頁面載入時執行：
+4. **登入頁面**：自訂授權視圖替換登入頁面 Logo 並套用主題色（包含粒子動畫）
+5. **初始設定頁面**：自訂初始設定視圖在首次設定時套用品牌
+6. **注入腳本**：在每次頁面載入時執行：
    - 替換網站圖示
    - 更新文件標題
    - 替換側邊欄 Logo 和標題
    - 將主題色套用到 UI 元素
-   - 在整個 DOM 中執行文字替換
+   - 替換對話框和 QR 碼中的 Logo
    - 使用優化的 MutationObserver 監控動態內容變化
 
 ## 安全性
@@ -140,11 +134,6 @@ ha_rebrand:
 1. 確保檔案存在於 `/config/www/` 目錄
 2. 清除瀏覽器快取
 3. 檢查瀏覽器主控台是否有錯誤
-
-### 文字替換不生效
-
-1. 設定變更後重新啟動 Home Assistant
-2. 強制重新整理瀏覽器（Ctrl+Shift+R）
 
 ### 主題色未套用
 
@@ -207,40 +196,9 @@ http:
 ## 限制說明
 
 - HA 核心 UI 中某些深層巢狀的元素可能無法被替換
-- 文字替換僅作用於可見文字，不影響元素屬性
 - 設定變更需要重新整理頁面才能生效
 - 主題色僅支援十六進位格式（`#RGB`、`#RRGGBB` 或 `#RRGGBBAA`）
 - 切換淺色/深色模式後，需要重新整理頁面才能看到對應的 Logo
-
-## 版本歷史
-
-### 2.1.0
-- 自動載入注入腳本（無需手動設定 frontend）
-- 載入畫面 Logo 替換（修補 IndexView）
-- 自訂登入/授權頁面品牌
-- 隱藏 Open Home Foundation 選項
-- 改進安全性驗證
-
-### 2.0.0
-- 新增 Config Flow 支援 UI 設定
-- 新增深色/淺色模式支援
-- 新增繁體中文翻譯
-- 修復側邊欄 Logo 注入問題
-- 改進錯誤處理
-
-### 1.1.0
-- 新增登入頁面和 UI 的主題色自訂功能
-- 安全性改進：防止 XSS 和 CSS 注入
-- 效能優化：預編譯正規表示式模式
-- 優化 MutationObserver，增加變更過濾和防抖動
-- 改進程式碼品質和日誌記錄
-
-### 1.0.0
-- 初始版本
-- Logo、網站圖示和標題自訂
-- 文字替換對應
-- 管理面板支援檔案上傳
-- 深色模式 Logo 支援
 
 ## 授權條款
 

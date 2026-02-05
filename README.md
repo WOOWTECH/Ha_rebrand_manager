@@ -4,13 +4,12 @@ A Home Assistant custom component that allows you to customize the branding of y
 
 ## Features
 
-- Replace Home Assistant logo with your own (sidebar, loading screen, login page)
+- Replace Home Assistant logo with your own (sidebar, loading screen, login page, onboarding page)
 - Custom favicon
 - Custom sidebar title
 - Custom document (browser tab) title
-- **Primary color customization** (login page buttons, UI accents)
+- **Primary color customization** (login page buttons, particles animation, UI accents)
 - **Hide Open Home Foundation logo**
-- Text replacement mapping (e.g., "Home Assistant" → "My Smart Home")
 - Dark mode logo support
 - Admin panel with drag-and-drop file upload
 - **Security hardened** (XSS and CSS injection prevention)
@@ -43,7 +42,6 @@ A Home Assistant custom component that allows you to customize the branding of y
    - Set your brand name and titles
    - Set your primary color (affects buttons and UI accents)
    - Toggle "Hide Open Home Foundation" option
-   - Add text replacements
 3. Click "Apply Changes" to test your configuration
 4. Click "Save to File" to create a permanent configuration
 
@@ -61,9 +59,6 @@ ha_rebrand:
   document_title: "My Smart Home"
   primary_color: "#6183fc"  # Optional: Custom primary color
   hide_open_home_foundation: true  # Optional: Hide OHF logo
-  replacements:
-    "Home Assistant": "My Smart Home"
-    "HA": "MSH"
 ```
 
 **Note:** The injector script is automatically loaded - no manual `frontend.extra_module_url` configuration is needed.
@@ -80,7 +75,6 @@ ha_rebrand:
 | `document_title` | string | brand_name | Browser tab title |
 | `primary_color` | string | null | Primary color for buttons and UI (hex format: `#RRGGBB`) |
 | `hide_open_home_foundation` | bool | true | Hide the Open Home Foundation logo |
-| `replacements` | dict | {} | Text replacement mapping |
 
 ## File Paths
 
@@ -102,13 +96,14 @@ Supported image formats:
 1. **Backend Component**: Manages configuration, file uploads, and provides WebSocket/HTTP APIs
 2. **Admin Panel**: Provides a user-friendly interface to configure branding
 3. **Loading Screen**: Patches Home Assistant's IndexView to show custom logo immediately on page load
-4. **Login Page**: Custom authorize view replaces the login page logo and applies primary color
-5. **Injector Script**: Runs on every page load and:
+4. **Login Page**: Custom authorize view replaces the login page logo and applies primary color (including particles animation)
+5. **Onboarding Page**: Custom onboarding view applies branding during initial setup
+6. **Injector Script**: Runs on every page load and:
    - Replaces the favicon
    - Updates the document title
    - Replaces the sidebar logo and title
    - Applies primary color to UI elements
-   - Performs text replacements throughout the DOM
+   - Replaces logos in dialogs and QR codes
    - Monitors for dynamic content changes with optimized MutationObserver
 
 ## Security
@@ -126,11 +121,6 @@ This component includes security measures to prevent XSS and CSS injection attac
 1. Make sure the file exists in `/config/www/`
 2. Clear your browser cache
 3. Check browser console for errors
-
-### Text replacements not working
-
-1. Restart Home Assistant after configuration changes
-2. Hard refresh your browser (Ctrl+Shift+R)
 
 ### Primary color not applying
 
@@ -193,40 +183,9 @@ For detailed technical explanation, see [Proxy_Issue_Solution_Plan.md](Proxy_Iss
 ## Limitations
 
 - Some deeply nested elements in the HA core UI may not be replaced
-- Text replacements work on visible text only, not on element attributes
 - Changes to configuration require a page refresh to take effect
 - Primary color only supports hex format (`#RGB`, `#RRGGBB`, or `#RRGGBBAA`)
 - If you switch between Light/Dark mode, you need to refresh the page to see the updated logo
-
-## Version History
-
-### 2.1.0
-- Automatic injector script loading (no manual frontend configuration needed)
-- Loading screen logo replacement (patches IndexView)
-- Custom login/authorize page with branding
-- Hide Open Home Foundation option
-- Improved security validations
-
-### 2.0.0
-- Added Config Flow for UI-based setup
-- Added dark/light mode logo support
-- Added Traditional Chinese translations
-- Fixed sidebar logo injection issues
-- Improved error handling
-
-### 1.1.0
-- Added primary color customization for login page and UI
-- Security improvements: XSS and CSS injection prevention
-- Performance optimization: pre-compiled regex patterns
-- Optimized MutationObserver with mutation filtering and debouncing
-- Improved code quality and logging
-
-### 1.0.0
-- Initial release
-- Logo, favicon, and title customization
-- Text replacement mapping
-- Admin panel with file upload
-- Dark mode logo support
 
 ## License
 
