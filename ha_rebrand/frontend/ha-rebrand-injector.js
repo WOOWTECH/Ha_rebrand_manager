@@ -217,17 +217,17 @@
    * Note: Only creates observer once to prevent multiple observers stacking up
    */
   function replaceDocumentTitle() {
-    if (!config?.document_title) return;
+    if (!config?.browser_tab_title) return;
 
     const originalTitle = document.title;
 
     // Replace "Home Assistant" in title (only if it produces a different result)
-    // This prevents infinite loop when document_title contains "Home Assistant"
-    const newTitle = originalTitle.replace(/Home Assistant/gi, config.document_title);
+    // This prevents infinite loop when browser_tab_title contains "Home Assistant"
+    const newTitle = originalTitle.replace(/Home Assistant/gi, config.browser_tab_title);
     if (newTitle !== originalTitle) {
       document.title = newTitle;
     } else if (originalTitle === '') {
-      document.title = config.document_title;
+      document.title = config.browser_tab_title;
     }
 
     // Only create title observer once to prevent multiple observers stacking up
@@ -237,9 +237,9 @@
       // Monitor title changes
       const titleObserver = new MutationObserver(() => {
         const currentTitle = document.title;
-        const newTitle = currentTitle.replace(/Home Assistant/gi, config.document_title);
+        const newTitle = currentTitle.replace(/Home Assistant/gi, config.browser_tab_title);
         // Only update if the replacement actually changes the title
-        // This prevents infinite loop when document_title contains "Home Assistant"
+        // This prevents infinite loop when browser_tab_title contains "Home Assistant"
         if (newTitle !== currentTitle) {
           document.title = newTitle;
         }
@@ -299,10 +299,10 @@
   function applySidebarChanges(shadowRoot) {
 
     // Replace sidebar title
-    if (config?.sidebar_title) {
+    if (config?.sidebar_text) {
       const titleElement = shadowRoot.querySelector('.title');
-      if (titleElement && titleElement.textContent !== config.sidebar_title) {
-        titleElement.textContent = config.sidebar_title;
+      if (titleElement && titleElement.textContent !== config.sidebar_text) {
+        titleElement.textContent = config.sidebar_text;
       }
     }
 
@@ -326,7 +326,7 @@
           customLogo = document.createElement('img');
           customLogo.className = 'ha-rebrand-logo';
           customLogo.src = config.logo;
-          customLogo.alt = config.brand_name || 'Logo';
+          customLogo.alt = config.system_name || 'Logo';
           customLogo.style.cssText = 'height: 40px; width: auto; max-width: 180px; object-fit: contain; margin: 12px 12px 4px 12px; display: block;';
 
           // Support dark mode logo
@@ -372,7 +372,7 @@
       elements.forEach(el => {
         if (el.tagName === 'IMG') {
           el.src = config.logo;
-          el.alt = config.brand_name || 'Logo';
+          el.alt = config.system_name || 'Logo';
         }
       });
     });
@@ -420,7 +420,7 @@
           // Create replacement image
           const img = document.createElement('img');
           img.src = config.logo;
-          img.alt = config.brand_name || 'Logo';
+          img.alt = config.system_name || 'Logo';
           img.className = 'ha-rebrand-login-logo';
           img.style.cssText = 'height: 80px; width: auto; max-width: 200px; object-fit: contain;';
 
@@ -446,7 +446,7 @@
 
           const img = document.createElement('img');
           img.src = config.logo;
-          img.alt = config.brand_name || 'Logo';
+          img.alt = config.system_name || 'Logo';
           img.className = 'ha-rebrand-login-logo';
           img.style.cssText = 'height: 80px; width: auto; max-width: 200px; object-fit: contain; display: block; margin: 0 auto 16px;';
 
@@ -482,7 +482,7 @@
       // Create replacement image
       const img = document.createElement('img');
       img.src = config.logo;
-      img.alt = config.brand_name || 'Logo';
+      img.alt = config.system_name || 'Logo';
       img.className = 'ha-rebrand-loading-logo';
       img.style.cssText = 'height: 120px; width: auto; max-width: 240px; object-fit: contain;';
 
@@ -541,7 +541,7 @@
       if (!img.classList.contains('ha-rebrand-dialog-logo')) {
         img.classList.add('ha-rebrand-dialog-logo');
         img.src = config.logo;
-        img.alt = config.brand_name || 'Logo';
+        img.alt = config.system_name || 'Logo';
         if (config.logo_dark && isHADarkMode()) {
           img.src = config.logo_dark;
         }
@@ -578,7 +578,7 @@
         if (!img.classList.contains('ha-rebrand-dialog-logo')) {
           img.classList.add('ha-rebrand-dialog-logo');
           img.src = config.logo;
-          img.alt = config.brand_name || 'Logo';
+          img.alt = config.system_name || 'Logo';
           if (config.logo_dark && isHADarkMode()) {
             img.src = config.logo_dark;
           }
@@ -594,7 +594,7 @@
         if (!img.classList.contains('ha-rebrand-dialog-logo')) {
           img.classList.add('ha-rebrand-dialog-logo');
           img.src = config.logo;
-          img.alt = config.brand_name || 'Logo';
+          img.alt = config.system_name || 'Logo';
           if (config.logo_dark && isHADarkMode()) {
             img.src = config.logo_dark;
           }
@@ -632,7 +632,7 @@
           const logoOverlay = document.createElement('img');
           logoOverlay.className = 'ha-rebrand-qr-logo';
           logoOverlay.src = config.logo;
-          logoOverlay.alt = config.brand_name || 'Logo';
+          logoOverlay.alt = config.system_name || 'Logo';
           logoOverlay.style.cssText = `
             position: absolute;
             top: 50%;

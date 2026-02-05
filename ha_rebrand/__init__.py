@@ -25,15 +25,18 @@ from homeassistant.helpers.typing import ConfigType
 from .const import (
     ALLOWED_EXTENSIONS,
     ALLOWED_FILE_TYPES,
-    CONF_BRAND_NAME,
-    CONF_DOCUMENT_TITLE,
+    CONF_BRAND_NAME_OLD,
+    CONF_BROWSER_TAB_TITLE,
+    CONF_DOCUMENT_TITLE_OLD,
     CONF_FAVICON,
     CONF_HIDE_OPEN_HOME_FOUNDATION,
     CONF_LOGO,
     CONF_LOGO_DARK,
     CONF_PRIMARY_COLOR,
-    CONF_SIDEBAR_TITLE,
-    DEFAULT_BRAND_NAME,
+    CONF_SIDEBAR_TEXT,
+    CONF_SIDEBAR_TITLE_OLD,
+    CONF_SYSTEM_NAME,
+    DEFAULT_SYSTEM_NAME,
     DOMAIN,
     MAX_FILE_SIZE,
     PANEL_COMPONENT_NAME,
@@ -97,16 +100,23 @@ DATA_PANEL_REGISTERED = f"{DOMAIN}_panel_registered"
 
 # Keep CONFIG_SCHEMA for backward compatibility (YAML still works)
 # Note: extra=vol.ALLOW_EXTRA allows existing configs with 'replacements' to load without error
+# Supports both old keys (brand_name, sidebar_title, document_title) and new keys
+# (system_name, sidebar_text, browser_tab_title) for migration compatibility
 CONFIG_SCHEMA = vol.Schema(
     {
         DOMAIN: vol.Schema(
             {
-                vol.Optional(CONF_BRAND_NAME, default=DEFAULT_BRAND_NAME): cv.string,
+                # New keys (preferred)
+                vol.Optional(CONF_SYSTEM_NAME, default=DEFAULT_SYSTEM_NAME): cv.string,
                 vol.Optional(CONF_LOGO): cv.string,
                 vol.Optional(CONF_LOGO_DARK): cv.string,
                 vol.Optional(CONF_FAVICON): cv.string,
-                vol.Optional(CONF_SIDEBAR_TITLE): cv.string,
-                vol.Optional(CONF_DOCUMENT_TITLE): cv.string,
+                vol.Optional(CONF_SIDEBAR_TEXT): cv.string,
+                vol.Optional(CONF_BROWSER_TAB_TITLE): cv.string,
+                # Old keys (deprecated, for backward compatibility)
+                vol.Optional(CONF_BRAND_NAME_OLD): cv.string,
+                vol.Optional(CONF_SIDEBAR_TITLE_OLD): cv.string,
+                vol.Optional(CONF_DOCUMENT_TITLE_OLD): cv.string,
             },
             extra=vol.ALLOW_EXTRA,
         )
@@ -142,15 +152,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) ->
 
     # Store configuration in hass.data
     hass.data[DOMAIN] = {
-        CONF_BRAND_NAME: config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
+        CONF_SYSTEM_NAME: config.get(CONF_SYSTEM_NAME, DEFAULT_SYSTEM_NAME),
         CONF_LOGO: config.get(CONF_LOGO),
         CONF_LOGO_DARK: config.get(CONF_LOGO_DARK),
         CONF_FAVICON: config.get(CONF_FAVICON),
-        CONF_SIDEBAR_TITLE: config.get(
-            CONF_SIDEBAR_TITLE, config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)
+        CONF_SIDEBAR_TEXT: config.get(
+            CONF_SIDEBAR_TEXT, config.get(CONF_SYSTEM_NAME, DEFAULT_SYSTEM_NAME)
         ),
-        CONF_DOCUMENT_TITLE: config.get(
-            CONF_DOCUMENT_TITLE, config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)
+        CONF_BROWSER_TAB_TITLE: config.get(
+            CONF_BROWSER_TAB_TITLE, config.get(CONF_SYSTEM_NAME, DEFAULT_SYSTEM_NAME)
         ),
         CONF_HIDE_OPEN_HOME_FOUNDATION: config.get(
             CONF_HIDE_OPEN_HOME_FOUNDATION, True
@@ -239,12 +249,49 @@ def _create_directory(path: str) -> None:
         os.makedirs(path, exist_ok=True)
 
 
+def _migrate_config(config: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """Migrate old config keys to new names.
+
+    Returns a tuple of (migrated_config, was_migrated).
+    """
+    migrations = {
+        "brand_name": "system_name",
+        "sidebar_title": "sidebar_text",
+        "document_title": "browser_tab_title",
+    }
+
+    migrated = False
+    for old_key, new_key in migrations.items():
+        if old_key in config and new_key not in config:
+            config[new_key] = config.pop(old_key)
+            migrated = True
+            _LOGGER.info(
+                "HA Rebrand: Migrated config key '%s' to '%s'", old_key, new_key
+            )
+
+    return config, migrated
+
+
 def _load_config_json(path: str) -> dict[str, Any]:
-    """Load config from JSON file."""
+    """Load config from JSON file and migrate old keys if needed."""
     if os.path.exists(path):
         try:
             with open(path, encoding="utf-8") as f:
                 result: dict[str, Any] = json.load(f)
+                # Migrate old config keys to new names
+                result, was_migrated = _migrate_config(result)
+                if was_migrated:
+                    # Write back the migrated config
+                    try:
+                        with open(path, "w", encoding="utf-8") as fw:
+                            json.dump(result, fw, ensure_ascii=False, indent=2)
+                        _LOGGER.info(
+                            "HA Rebrand: Saved migrated config to %s", path
+                        )
+                    except OSError as e:
+                        _LOGGER.warning(
+                            "Could not save migrated config to %s: %s", path, e
+                        )
                 return result
         except json.JSONDecodeError as e:
             _LOGGER.warning("Invalid JSON in config file %s: %s", path, e)
@@ -263,12 +310,12 @@ async def _async_write_config_json(hass: HomeAssistant) -> None:
     """Write current config to JSON file."""
     config = hass.data.get(DOMAIN, {})
     config_json = {
-        "brand_name": config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
+        "system_name": config.get(CONF_SYSTEM_NAME, DEFAULT_SYSTEM_NAME),
         "logo": config.get(CONF_LOGO),
         "logo_dark": config.get(CONF_LOGO_DARK),
         "favicon": config.get(CONF_FAVICON),
-        "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
-        "document_title": config.get(CONF_DOCUMENT_TITLE),
+        "sidebar_text": config.get(CONF_SIDEBAR_TEXT),
+        "browser_tab_title": config.get(CONF_BROWSER_TAB_TITLE),
         "hide_open_home_foundation": config.get(CONF_HIDE_OPEN_HOME_FOUNDATION, True),
         "primary_color": config.get(CONF_PRIMARY_COLOR),
     }
@@ -417,7 +464,7 @@ img[alt*="Open Home Foundation"] {
                     return html
 
                 logo_dark = config.get(CONF_LOGO_DARK) or logo
-                brand_name = config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME)
+                system_name = config.get(CONF_SYSTEM_NAME, DEFAULT_SYSTEM_NAME)
 
                 # Strategy 1: Enhanced CSS to immediately hide SVG and show img
                 # Multiple selectors to ensure hiding works in all scenarios
@@ -449,8 +496,8 @@ svg[viewBox="0 0 240 240"] {
 </style>"""
 
                 # Strategy 2: Direct HTML replacement - replace the SVG with img tag
-                # Use html_escape to prevent XSS via logo URL or brand_name
-                img_tag = f'<img src="{html_escape(logo)}" alt="{html_escape(brand_name)}" class="ha-rebrand-logo">'
+                # Use html_escape to prevent XSS via logo URL or system_name
+                img_tag = f'<img src="{html_escape(logo)}" alt="{html_escape(system_name)}" class="ha-rebrand-logo">'
 
                 # Replace the SVG in #ha-launch-screen using pre-compiled pattern
                 html = _SVG_PATTERN.sub(img_tag, html, count=1)
@@ -460,7 +507,7 @@ svg[viewBox="0 0 240 240"] {
                 # Dark mode detection uses: 1) color-scheme meta tag, 2) CSS variable luminance, 3) system preference
                 backup_script = f'''<script>
 (function(){{
-  var logo="{_escape_js_string(logo)}",logoD="{_escape_js_string(logo_dark)}",brand="{_escape_js_string(brand_name)}";
+  var logo="{_escape_js_string(logo)}",logoD="{_escape_js_string(logo_dark)}",brand="{_escape_js_string(system_name)}";
   function isDark(){{
     var meta=document.querySelector('meta[name="color-scheme"]');
     if(meta){{var c=meta.getAttribute("content");if(c==="dark")return true;if(c==="light")return false;}}
@@ -529,12 +576,12 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
         connection.send_result(
             msg["id"],
             {
-                "brand_name": config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
+                "system_name": config.get(CONF_SYSTEM_NAME, DEFAULT_SYSTEM_NAME),
                 "logo": config.get(CONF_LOGO),
                 "logo_dark": config.get(CONF_LOGO_DARK),
                 "favicon": config.get(CONF_FAVICON),
-                "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
-                "document_title": config.get(CONF_DOCUMENT_TITLE),
+                "sidebar_text": config.get(CONF_SIDEBAR_TEXT),
+                "browser_tab_title": config.get(CONF_BROWSER_TAB_TITLE),
                 "hide_open_home_foundation": config.get(
                     CONF_HIDE_OPEN_HOME_FOUNDATION, True
                 ),
@@ -545,12 +592,12 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
     @websocket_api.websocket_command(
         {
             vol.Required("type"): "ha_rebrand/update_config",
-            vol.Optional("brand_name"): cv.string,
+            vol.Optional("system_name"): cv.string,
             vol.Optional("logo"): vol.Any(cv.string, None),
             vol.Optional("logo_dark"): vol.Any(cv.string, None),
             vol.Optional("favicon"): vol.Any(cv.string, None),
-            vol.Optional("sidebar_title"): cv.string,
-            vol.Optional("document_title"): cv.string,
+            vol.Optional("sidebar_text"): cv.string,
+            vol.Optional("browser_tab_title"): cv.string,
             vol.Optional("hide_open_home_foundation"): cv.boolean,
             vol.Optional("primary_color"): vol.Any(cv.string, None),
         }
@@ -565,18 +612,18 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
         """Update rebrand configuration. Requires admin privileges."""
         config = hass.data.get(DOMAIN, {})
 
-        if "brand_name" in msg:
-            config[CONF_BRAND_NAME] = msg["brand_name"]
+        if "system_name" in msg:
+            config[CONF_SYSTEM_NAME] = msg["system_name"]
         if "logo" in msg:
             config[CONF_LOGO] = msg["logo"]
         if "logo_dark" in msg:
             config[CONF_LOGO_DARK] = msg["logo_dark"]
         if "favicon" in msg:
             config[CONF_FAVICON] = msg["favicon"]
-        if "sidebar_title" in msg:
-            config[CONF_SIDEBAR_TITLE] = msg["sidebar_title"]
-        if "document_title" in msg:
-            config[CONF_DOCUMENT_TITLE] = msg["document_title"]
+        if "sidebar_text" in msg:
+            config[CONF_SIDEBAR_TEXT] = msg["sidebar_text"]
+        if "browser_tab_title" in msg:
+            config[CONF_BROWSER_TAB_TITLE] = msg["browser_tab_title"]
         if "hide_open_home_foundation" in msg:
             config[CONF_HIDE_OPEN_HOME_FOUNDATION] = msg["hide_open_home_foundation"]
         if "primary_color" in msg:
@@ -609,12 +656,12 @@ class RebrandConfigView(HomeAssistantView):
         config = self.hass.data.get(DOMAIN, {})
         return self.json(
             {
-                "brand_name": config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
+                "system_name": config.get(CONF_SYSTEM_NAME, DEFAULT_SYSTEM_NAME),
                 "logo": config.get(CONF_LOGO),
                 "logo_dark": config.get(CONF_LOGO_DARK),
                 "favicon": config.get(CONF_FAVICON),
-                "sidebar_title": config.get(CONF_SIDEBAR_TITLE),
-                "document_title": config.get(CONF_DOCUMENT_TITLE),
+                "sidebar_text": config.get(CONF_SIDEBAR_TEXT),
+                "browser_tab_title": config.get(CONF_BROWSER_TAB_TITLE),
                 "hide_open_home_foundation": config.get(
                     CONF_HIDE_OPEN_HOME_FOUNDATION, True
                 ),
@@ -766,8 +813,8 @@ class RebrandAuthorizeView(HomeAssistantView):
         # Get custom branding config
         config = self.hass.data.get(DOMAIN, {})
         logo_url = config.get(CONF_LOGO)
-        brand_name = config.get(CONF_BRAND_NAME) or DEFAULT_BRAND_NAME
-        document_title = config.get(CONF_DOCUMENT_TITLE) or brand_name
+        system_name = config.get(CONF_SYSTEM_NAME) or DEFAULT_SYSTEM_NAME
+        browser_tab_title = config.get(CONF_BROWSER_TAB_TITLE) or system_name
 
         # Only modify if we have a custom logo
         if logo_url:
@@ -779,13 +826,13 @@ class RebrandAuthorizeView(HomeAssistantView):
 
         # Replace alt text (use html_escape to prevent XSS)
         html_content = html_content.replace(
-            'alt="Home Assistant"', f'alt="{html_escape(brand_name)}"'
+            'alt="Home Assistant"', f'alt="{html_escape(system_name)}"'
         )
 
         # Replace page title (use html_escape to prevent XSS)
         html_content = html_content.replace(
             "<title>Home Assistant</title>",
-            f"<title>{html_escape(document_title)}</title>",
+            f"<title>{html_escape(browser_tab_title)}</title>",
         )
 
         # Inject favicon link tags for login page
@@ -994,8 +1041,8 @@ class RebrandOnboardingView(HomeAssistantView):
         # Get custom branding config
         config = self.hass.data.get(DOMAIN, {})
         logo_url = config.get(CONF_LOGO)
-        brand_name = config.get(CONF_BRAND_NAME) or DEFAULT_BRAND_NAME
-        document_title = config.get(CONF_DOCUMENT_TITLE) or brand_name
+        system_name = config.get(CONF_SYSTEM_NAME) or DEFAULT_SYSTEM_NAME
+        browser_tab_title = config.get(CONF_BROWSER_TAB_TITLE) or system_name
 
         # Replace the logo image src if we have a custom logo
         if logo_url:
@@ -1006,13 +1053,13 @@ class RebrandOnboardingView(HomeAssistantView):
 
         # Replace alt text
         html_content = html_content.replace(
-            'alt="Home Assistant"', f'alt="{html_escape(brand_name)}"'
+            'alt="Home Assistant"', f'alt="{html_escape(system_name)}"'
         )
 
         # Replace page title
         html_content = html_content.replace(
             "<title>Home Assistant</title>",
-            f"<title>{html_escape(document_title)}</title>",
+            f"<title>{html_escape(browser_tab_title)}</title>",
         )
 
         # Inject favicon link tags
@@ -1173,7 +1220,7 @@ class RebrandSaveConfigView(HomeAssistantView):
 
         # Prepare config for YAML (without top-level domain key for !include)
         yaml_config: dict[str, Any] = {
-            CONF_BRAND_NAME: config.get(CONF_BRAND_NAME, DEFAULT_BRAND_NAME),
+            CONF_SYSTEM_NAME: config.get(CONF_SYSTEM_NAME, DEFAULT_SYSTEM_NAME),
         }
 
         if config.get(CONF_LOGO):
@@ -1182,10 +1229,10 @@ class RebrandSaveConfigView(HomeAssistantView):
             yaml_config[CONF_LOGO_DARK] = config[CONF_LOGO_DARK]
         if config.get(CONF_FAVICON):
             yaml_config[CONF_FAVICON] = config[CONF_FAVICON]
-        if config.get(CONF_SIDEBAR_TITLE):
-            yaml_config[CONF_SIDEBAR_TITLE] = config[CONF_SIDEBAR_TITLE]
-        if config.get(CONF_DOCUMENT_TITLE):
-            yaml_config[CONF_DOCUMENT_TITLE] = config[CONF_DOCUMENT_TITLE]
+        if config.get(CONF_SIDEBAR_TEXT):
+            yaml_config[CONF_SIDEBAR_TEXT] = config[CONF_SIDEBAR_TEXT]
+        if config.get(CONF_BROWSER_TAB_TITLE):
+            yaml_config[CONF_BROWSER_TAB_TITLE] = config[CONF_BROWSER_TAB_TITLE]
 
         # Write to file using executor to avoid blocking
         config_path = self.hass.config.path("ha_rebrand.yaml")

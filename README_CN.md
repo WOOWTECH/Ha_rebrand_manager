@@ -51,12 +51,12 @@
 
 ```yaml
 ha_rebrand:
-  brand_name: "我的智慧家居"
+  system_name: "我的智慧家居"
   logo: "/local/my-logo.svg"
   logo_dark: "/local/my-logo-dark.svg"  # 可選
   favicon: "/local/favicon.ico"
-  sidebar_title: "我的智慧家居"
-  document_title: "我的智慧家居"
+  sidebar_text: "我的智慧家居"
+  browser_tab_title: "我的智慧家居"
   primary_color: "#6183fc"  # 可選：自訂主題色
   hide_open_home_foundation: true  # 可選：隱藏 OHF 標誌
 ```
@@ -67,14 +67,23 @@ ha_rebrand:
 
 | 選項 | 類型 | 預設值 | 說明 |
 |------|------|--------|------|
-| `brand_name` | 字串 | "Home Assistant" | 主品牌名稱 |
+| `system_name` | 字串 | "Home Assistant" | 用於無障礙功能和系統參考的名稱 |
 | `logo` | 字串 | null | Logo 圖片路徑（支援 `/local/` 路徑和 URL） |
 | `logo_dark` | 字串 | null | 深色模式 Logo 路徑（可選） |
 | `favicon` | 字串 | null | 網站圖示路徑 |
-| `sidebar_title` | 字串 | brand_name | 側邊欄顯示的標題 |
-| `document_title` | 字串 | brand_name | 瀏覽器標籤頁標題 |
+| `sidebar_text` | 字串 | system_name | 顯示在側邊欄頂部的文字 |
+| `browser_tab_title` | 字串 | system_name | 顯示在瀏覽器分頁中的名稱 |
 | `primary_color` | 字串 | null | 按鈕和 UI 的主題色（十六進位格式：`#RRGGBB`） |
 | `hide_open_home_foundation` | 布林 | true | 隱藏 Open Home Foundation 標誌 |
+
+### 從舊版本升級
+
+如果您從舊版本升級，舊的設定鍵會自動遷移：
+- `brand_name` → `system_name`
+- `sidebar_title` → `sidebar_text`
+- `document_title` → `browser_tab_title`
+
+舊的設定鍵仍支援向後相容。
 
 ## 檔案路徑說明
 
@@ -95,9 +104,9 @@ ha_rebrand:
 
 | 設定項 | 顯示位置 |
 |--------|----------|
-| `brand_name` | 設定頁面標題、關於頁面、系統資訊 |
-| `sidebar_title` | 側邊欄頂部標題區域 |
-| `document_title` | 瀏覽器標籤頁標題（例如：「總覽 – 品牌名稱」） |
+| `system_name` | 無障礙功能、系統參考、Logo alt 文字 |
+| `sidebar_text` | 側邊欄頂部標題區域 |
+| `browser_tab_title` | 瀏覽器標籤頁標題（例如：「總覽 – 名稱」） |
 | `logo` | 側邊欄頂部 Logo 區域、載入畫面、登入頁面 |
 | `logo_dark` | 深色模式下的 Logo |
 | `favicon` | 瀏覽器標籤頁圖示 |

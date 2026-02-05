@@ -51,12 +51,12 @@ Add the following to your `configuration.yaml`:
 
 ```yaml
 ha_rebrand:
-  brand_name: "My Smart Home"
+  system_name: "My Smart Home"
   logo: "/local/my-logo.svg"
   logo_dark: "/local/my-logo-dark.svg"  # Optional
   favicon: "/local/favicon.ico"
-  sidebar_title: "My Smart Home"
-  document_title: "My Smart Home"
+  sidebar_text: "My Smart Home"
+  browser_tab_title: "My Smart Home"
   primary_color: "#6183fc"  # Optional: Custom primary color
   hide_open_home_foundation: true  # Optional: Hide OHF logo
 ```
@@ -67,14 +67,23 @@ ha_rebrand:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `brand_name` | string | "Home Assistant" | The main brand name |
+| `system_name` | string | "Home Assistant" | The name used for accessibility and system references |
 | `logo` | string | null | Path to logo image (supports `/local/` paths and URLs) |
 | `logo_dark` | string | null | Path to dark mode logo (optional) |
 | `favicon` | string | null | Path to favicon |
-| `sidebar_title` | string | brand_name | Title shown in sidebar |
-| `document_title` | string | brand_name | Browser tab title |
+| `sidebar_text` | string | system_name | The text displayed at the top of the sidebar |
+| `browser_tab_title` | string | system_name | The name shown in browser tabs |
 | `primary_color` | string | null | Primary color for buttons and UI (hex format: `#RRGGBB`) |
 | `hide_open_home_foundation` | bool | true | Hide the Open Home Foundation logo |
+
+### Migration from Previous Versions
+
+If you're upgrading from a previous version, the old configuration keys will be automatically migrated:
+- `brand_name` → `system_name`
+- `sidebar_title` → `sidebar_text`
+- `document_title` → `browser_tab_title`
+
+The old keys are still supported for backward compatibility.
 
 ## File Paths
 

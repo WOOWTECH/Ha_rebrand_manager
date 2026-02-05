@@ -405,12 +405,12 @@ class HaRebrandPanel extends LitElement {
   constructor() {
     super();
     this._config = {
-      brand_name: "",
+      system_name: "",
       logo: "",
       logo_dark: "",
       favicon: "",
-      sidebar_title: "",
-      document_title: "",
+      sidebar_text: "",
+      browser_tab_title: "",
       hide_open_home_foundation: true,
       primary_color: "",
     };
@@ -437,12 +437,12 @@ class HaRebrandPanel extends LitElement {
         type: "ha_rebrand/get_config",
       });
       this._config = {
-        brand_name: result.brand_name || "",
+        system_name: result.system_name || "",
         logo: result.logo || "",
         logo_dark: result.logo_dark || "",
         favicon: result.favicon || "",
-        sidebar_title: result.sidebar_title || "",
-        document_title: result.document_title || "",
+        sidebar_text: result.sidebar_text || "",
+        browser_tab_title: result.browser_tab_title || "",
         hide_open_home_foundation: result.hide_open_home_foundation !== false,
         primary_color: result.primary_color || "",
       };
@@ -622,44 +622,44 @@ class HaRebrandPanel extends LitElement {
           </div>
         ` : ""}
 
-        <!-- Brand Name Card -->
+        <!-- System Name & Text Settings Card -->
         <div class="card">
           <h2 class="card-title">
             <svg viewBox="0 0 24 24"><path fill="currentColor" d="M5,4V7H10.5V19H13.5V7H19V4H5Z"/></svg>
-            Brand Name & Titles
+            System Name & Text Settings
           </h2>
 
           <div class="form-group">
-            <label>Brand Name</label>
+            <label>System Name / 系統名稱</label>
             <input
               type="text"
-              .value=${this._config.brand_name}
-              @input=${(e) => this._updateConfig("brand_name", e.target.value)}
+              .value=${this._config.system_name}
+              @input=${(e) => this._updateConfig("system_name", e.target.value)}
               placeholder="My Smart Home"
             />
-            <p class="hint"><strong>顯示位置：</strong>設定頁面標題、關於頁面、系統資訊中的品牌名稱</p>
+            <p class="hint">The name used for accessibility and system references<br/>用於無障礙功能和系統參考的名稱</p>
           </div>
 
           <div class="form-group">
-            <label>Sidebar Title</label>
+            <label>Sidebar Text / 側邊欄文字</label>
             <input
               type="text"
-              .value=${this._config.sidebar_title}
-              @input=${(e) => this._updateConfig("sidebar_title", e.target.value)}
+              .value=${this._config.sidebar_text}
+              @input=${(e) => this._updateConfig("sidebar_text", e.target.value)}
               placeholder="My Smart Home"
             />
-            <p class="hint"><strong>顯示位置：</strong>側邊欄頂部標題區域，取代原本的「Home Assistant」文字</p>
+            <p class="hint">The text displayed at the top of the sidebar<br/>顯示在側邊欄頂部的文字</p>
           </div>
 
           <div class="form-group">
-            <label>Document Title</label>
+            <label>Browser Tab Title / 瀏覽器分頁標題</label>
             <input
               type="text"
-              .value=${this._config.document_title}
-              @input=${(e) => this._updateConfig("document_title", e.target.value)}
+              .value=${this._config.browser_tab_title}
+              @input=${(e) => this._updateConfig("browser_tab_title", e.target.value)}
               placeholder="My Smart Home"
             />
-            <p class="hint"><strong>顯示位置：</strong>瀏覽器標籤頁標題（例如：「總覽 – 品牌名稱」）</p>
+            <p class="hint">The name shown in browser tabs<br/>顯示在瀏覽器分頁中的名稱</p>
           </div>
         </div>
 
