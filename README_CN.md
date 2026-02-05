@@ -1,5 +1,7 @@
 # HA Rebrand
 
+[English](README.md)
+
 一個 Home Assistant 自訂組件，讓您可以自訂 Home Assistant 實例的品牌外觀。
 
 ## 功能特性

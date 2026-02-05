@@ -1,5 +1,7 @@
 # HA Rebrand
 
+[中文版](README_CN.md)
+
 A Home Assistant custom component that allows you to customize the branding of your Home Assistant instance.
 
 ## Features
