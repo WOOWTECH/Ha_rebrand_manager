@@ -220,6 +220,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: HaRebrandConfigEntry) ->
             embed_iframe=False,
             require_admin=True,
         )
+        # Register sidebar title i18n script (runs on every page)
+        sidebar_title_path = os.path.join(uploads_dir, "sidebar-title.js")
+        sidebar_hash = await hass.async_add_executor_job(
+            _get_file_hash, sidebar_title_path
+        )
+        frontend.add_extra_js_url(
+            hass, f"/ha_rebrand/sidebar-title.js?v={sidebar_hash}"
+        )
+
         hass.data[DATA_PANEL_REGISTERED] = True
 
     _LOGGER.info("HA Rebrand component loaded successfully")
