@@ -557,6 +557,21 @@ class HaRebrandPanel extends LitElement {
     this._config = { ...this._config, [field]: value };
   }
 
+  _getLanguage() {
+    const locale = this.hass?.language || this.hass?.locale?.language || navigator.language || 'en';
+    const supported = { en: true, 'zh-Hant': true, 'zh-Hans': true };
+    if (supported[locale]) return locale;
+    if (locale.startsWith('zh-TW') || locale.startsWith('zh-HK')) return 'zh-Hant';
+    if (locale.startsWith('zh-CN') || locale.startsWith('zh-SG')) return 'zh-Hans';
+    if (locale.startsWith('zh')) return 'zh-Hans';
+    return 'en';
+  }
+
+  get _panelTitle() {
+    const titles = { en: 'Rebrand', 'zh-Hant': '品牌重塑', 'zh-Hans': '品牌重塑' };
+    return titles[this._getLanguage()] || 'Rebrand';
+  }
+
   _showMessage(type, text) {
     this._message = { type, text };
     setTimeout(() => {
@@ -568,7 +583,7 @@ class HaRebrandPanel extends LitElement {
     if (this._loading) {
       return html`
         <div class="top-bar">
-          <h1 class="top-bar-title">Rebrand</h1>
+          <h1 class="top-bar-title">${this._panelTitle}</h1>
         </div>
         <div class="loading">
           <div class="spinner"></div>
@@ -578,7 +593,7 @@ class HaRebrandPanel extends LitElement {
 
     return html`
       <div class="top-bar">
-        <h1 class="top-bar-title">Rebrand</h1>
+        <h1 class="top-bar-title">${this._panelTitle}</h1>
       </div>
 
       <div class="content">
